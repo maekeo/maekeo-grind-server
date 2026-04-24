@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MAEKEO LAB</title>
+<style>
+:root {
+  --bg:#F2F2F7; --bg2:#FFFFFF; --bg3:#E5E5EA;
+  --label:#000; --label2:rgba(60,60,67,.6); --label3:rgba(60,60,67,.3);
+  --sep:rgba(60,60,67,.12); --fill:rgba(120,120,128,.12);
+  --blue:#007AFF; --blue-bg:rgba(0,122,255,.1);
+  --orange:#FF9500; --orange-bg:rgba(255,149,0,.1);
+  --red:#FF3B30; --red-bg:rgba(255,59,48,.1);
+  --green:#34C759;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#000; --bg2:#1C1C1E; --bg3:#2C2C2E;
+    --label:#FFF; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3);
+    --sep:rgba(84,84,88,.6); --fill:rgba(118,118,128,.24);
+    --blue-bg:rgba(0,122,255,.18); --orange-bg:rgba(255,149,0,.18); --red-bg:rgba(255,59,48,.18);
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased;background:var(--bg);color:var(--label);min-height:100dvh}
+.app{max-width:430px;margin:0 auto;padding-bottom:90px}
+
+/* NAV */
+.nav{position:sticky;top:0;z-index:100;background:rgba(242,242,247,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:.5px solid var(--sep);padding-top:max(env(safe-area-inset-top),20px)}
+@media(prefers-color-scheme:dark){.nav{background:rgba(0,0,0,.9)}}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 16px}
+.nav-title{font-size:17px;font-weight:600;letter-spacing:-.4px}
+.nav-link{font-size:12px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:6px 12px;border-radius:20px;text-decoration:none;white-space:nowrap}
+.seg-wrap{padding:8px 16px 10px}
+.segmented{display:flex;background:var(--fill);border-radius:9px;padding:2px}
+.seg-btn{flex:1;padding:7px 8px;border:none;background:transparent;font-family:inherit;font-size:13px;font-weight:500;color:var(--label2);border-radius:7px;cursor:pointer;transition:all .18s}
+.seg-btn.active{background:var(--bg2);color:var(--label);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+
+/* SECTION */
+.section{display:none}.section.active{display:block}
+.group{margin:0 16px 20px}
+.group-hd{font-size:12px;font-weight:400;color:var(--label2);letter-spacing:.5px;text-transform:uppercase;padding:0 4px 6px}
+.group-ft{font-size:13px;color:var(--label2);padding:6px 4px 0;line-height:1.4}
+.card{background:var(--bg2);border-radius:12px;overflow:hidden}
+.row{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;gap:8px;border-bottom:.5px solid var(--sep);min-height:44px}
+.row:last-child{border-bottom:none}
+.row-label{font-size:17px;font-weight:400;color:var(--label);letter-spacing:-.4px;flex-shrink:0}
+.row-value{font-size:17px;font-weight:400;color:var(--label2);letter-spacing:-.4px;text-align:right}
+
+/* BUTTONS */
+.btn-row{display:flex;gap:8px;padding:0 16px 8px}
+.btn{flex:1;height:50px;border:none;border-radius:12px;font-family:inherit;font-size:17px;font-weight:500;cursor:pointer;letter-spacing:-.4px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.btn:active{opacity:.7;transform:scale(.98)}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-secondary{background:var(--fill);color:var(--blue)}
+.btn-sm{height:44px;font-size:15px;border-radius:10px}
+
+/* CAMERA */
+.cam-box{margin:0 16px;border-radius:12px;overflow:hidden;position:relative;aspect-ratio:1;background:var(--bg3)}
+.cam-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center}
+.cam-ph-title{font-size:17px;font-weight:500;color:var(--label)}
+.cam-ph-sub{font-size:14px;color:var(--label2);line-height:1.5}
+.cam-ph-tip{margin-top:8px;background:var(--blue-bg);border:.5px solid rgba(0,122,255,.25);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:500;color:var(--blue);line-height:1.5}
+.cam-box video,.cam-box .preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scan-overlay{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:10;gap:14px}
+.scan-overlay.show{display:flex}
+.scan-line{width:68%;height:1.5px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.9),transparent);animation:scanMove 1.6s ease-in-out infinite}
+@keyframes scanMove{0%{transform:translateY(-44px);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:translateY(44px);opacity:0}}
+.scan-lbl{font-size:12px;font-weight:600;color:rgba(255,255,255,.65);letter-spacing:1.8px;text-transform:uppercase;animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* LOADING */
+.loading{display:none;padding:20px 16px;align-items:center;justify-content:center;gap:10px}
+.loading.show{display:flex}
+.spinner{width:18px;height:18px;border:2px solid var(--fill);border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-lbl{font-size:15px;color:var(--label2)}
+
+/* RESULT */
+.result{display:none;animation:slideUp .32s ease}
+.result.show{display:block}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.meter-wrap{padding:6px 16px 14px}
+.meter-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--label3);margin-bottom:8px}
+.meter-track{height:5px;background:var(--fill);border-radius:99px;position:relative}
+.meter-fill{height:100%;border-radius:99px;background:var(--blue);transition:width .85s cubic-bezier(.34,1.56,.64,1);position:relative}
+.meter-thumb{position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:14px;height:14px;background:var(--bg2);border:2px solid var(--blue);border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.18)}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr}
+.stat-cell{padding:12px 16px;border-bottom:.5px solid var(--sep);border-right:.5px solid var(--sep)}
+.stat-cell:nth-child(even){border-right:none}
+.stat-cell:nth-last-child(-n+2){border-bottom:none}
+.stat-lbl{font-size:11px;font-weight:500;color:var(--label2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px}
+.stat-val{font-size:24px;font-weight:600;color:var(--label);letter-spacing:-.8px;line-height:1}
+.stat-unit{font-size:13px;font-weight:400;color:var(--label2)}
+.advice-cell{padding:12px 16px;display:flex;flex-direction:column;gap:4px}
+.advice-cap{font-size:11px;font-weight:600;color:var(--blue);letter-spacing:.5px;text-transform:uppercase}
+.advice-body{font-size:15px;color:var(--label);line-height:1.5;letter-spacing:-.2px}
+.badge{font-size:13px;font-weight:600;padding:3px 10px;border-radius:8px}
+.badge-high{background:rgba(52,199,89,.15);color:var(--green)}
+.badge-mid{background:rgba(255,149,0,.15);color:var(--orange)}
+.badge-low{background:rgba(255,59,48,.15);color:var(--red)}
+
+/* TIMER */
+.timer-card{background:var(--bg2);border-radius:12px;overflow:hidden}
+.timer-hero{display:flex;flex-direction:column;align-items:center;padding:28px 20px 20px}
+.ring-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center;margin-bottom:22px}
+.timer-svg{width:196px;height:196px;transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--fill);stroke-width:5}
+.ring-fill{fill:none;stroke:var(--blue);stroke-width:5;stroke-linecap:round;stroke-dasharray:534;stroke-dashoffset:534;transition:stroke-dashoffset 1s linear,stroke .35s ease}
+.timer-center{position:absolute;text-align:center}
+.timer-digits{font-size:52px;font-weight:200;color:var(--label);letter-spacing:-3px;line-height:1;font-variant-numeric:tabular-nums}
+.timer-sub{font-size:13px;color:var(--label2);margin-top:4px}
+.stage-name{font-size:20px;font-weight:600;color:var(--label);letter-spacing:-.5px;margin-bottom:4px;text-align:center}
+.stage-desc{font-size:15px;color:var(--label2);letter-spacing:-.3px;line-height:1.4;text-align:center}
+.prog-dots{display:flex;gap:5px;justify-content:center;margin-top:16px}
+.prog-dot{width:6px;height:6px;border-radius:50%;background:var(--fill);transition:all .25s}
+.prog-dot.active{width:20px;border-radius:3px;background:var(--blue)}
+.prog-dot.done{background:var(--label3)}
+.timer-btns{display:flex;gap:8px;padding:0 16px 16px}
+
+/* TIMER ALERTS */
+.alert{display:none;margin:0 16px 10px;border-radius:12px;padding:12px 14px;animation:slideUp .28s ease}
+.alert.show{display:block}
+.alert.warn{background:var(--orange-bg);border:.5px solid rgba(255,149,0,.3)}
+.alert.danger{background:var(--red-bg);border:.5px solid rgba(255,59,48,.3)}
+.alert-title{font-size:15px;font-weight:600;letter-spacing:-.3px;margin-bottom:3px}
+.alert.warn .alert-title{color:var(--orange)}
+.alert.danger .alert-title{color:var(--red)}
+.alert-body{font-size:13px;color:var(--label);line-height:1.45}
+
+/* TIMELINE */
+.tl-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:.5px solid var(--sep);transition:opacity .25s}
+.tl-row:last-child{border-bottom:none}
+.tl-row.done{opacity:.32}.tl-row.upcoming{opacity:.5}
+.tl-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--label3);transition:all .25s}
+.tl-dot.current{background:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+.tl-info{flex:1}
+.tl-name{font-size:15px;font-weight:500;color:var(--label);letter-spacing:-.3px}
+.tl-time{font-size:13px;color:var(--label2);margin-top:1px}
+.tl-badge{font-size:13px;font-weight:500;color:var(--label3)}
+.tl-badge.done{color:var(--green)}.tl-badge.current{color:var(--blue)}
+
+/* SCREEN WARNING */
+.screen-warn{display:flex;align-items:flex-start;gap:10px;margin:0 16px 10px;background:var(--orange-bg);border:.5px solid rgba(255,149,0,.3);border-radius:12px;padding:11px 14px}
+.screen-warn-text{font-size:13px;color:var(--label);line-height:1.45}
+.screen-warn-text strong{color:var(--orange);font-weight:600}
+
+/* FLASH */
+@keyframes flashWarn{0%,100%{box-shadow:inset 0 0 0 0 transparent}25%{box-shadow:inset 0 0 0 8px rgba(255,149,0,.55)}75%{box-shadow:inset 0 0 0 8px rgba(255,149,0,.3)}}
+@keyframes flashDanger{0%,100%{box-shadow:inset 0 0 0 0 transparent}25%{box-shadow:inset 0 0 0 10px rgba(255,59,48,.65)}75%{box-shadow:inset 0 0 0 10px rgba(255,59,48,.35)}}
+body.flash-warn{animation:flashWarn .4s ease 4}
+body.flash-danger{animation:flashDanger .35s ease 6}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:flex-end;justify-content:center}
+.modal-bg.show{display:flex}
+.modal-sheet{background:var(--bg2);border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:430px;animation:sheetUp .3s cubic-bezier(.25,.46,.45,.94)}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:36px;height:4px;background:var(--fill);border-radius:2px;margin:0 auto 20px}
+.modal-title{font-size:20px;font-weight:700;color:var(--label);letter-spacing:-.5px;margin-bottom:6px}
+.modal-desc{font-size:13px;color:var(--label2);line-height:1.5;margin-bottom:12px}
+.modal-desc a{color:var(--blue);text-decoration:none}
+.modal-desc strong{color:var(--label);font-weight:600}
+.modal-input{width:100%;height:50px;background:var(--fill);border:1px solid var(--sep);border-radius:12px;padding:0 16px;font-family:inherit;font-size:15px;color:var(--label);outline:none;margin-bottom:10px;-webkit-appearance:none}
+.modal-input:focus{border-color:var(--blue)}
+.modal-input::placeholder{color:var(--label3)}
+.modal-btns{display:flex;gap:8px}
+
+/* TAB BAR */
+.tab-bar{position:fixed;bottom:0;left:0;right:0;height:calc(49px + env(safe-area-inset-bottom,0px));background:rgba(242,242,247,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:.5px solid var(--sep);display:flex;padding-bottom:env(safe-area-inset-bottom,0px);z-index:100}
+@media(prefers-color-scheme:dark){.tab-bar{background:rgba(0,0,0,.92)}}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;cursor:pointer;padding-top:5px;font-family:inherit}
+.tab-pip{font-size:11px;font-weight:700;color:var(--label3);width:30px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all .2s}
+.tab-item.active .tab-pip{background:var(--blue-bg);color:var(--blue)}
+.tab-lbl{font-size:10px;font-weight:500;color:var(--label3);transition:color .2s}
+.tab-item.active .tab-lbl{color:var(--blue)}
+
+/* TOAST */
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(6px);background:rgba(50,50,52,.94);backdrop-filter:blur(20px);color:#fff;font-size:14px;font-weight:500;padding:9px 18px;border-radius:18px;opacity:0;transition:all .22s;z-index:200;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+#fileInput,#camFileInput{display:none}
+.gap{height:16px}.gap-sm{height:10px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nav-inner">
+    <span class="nav-title">MAEKEO LAB</span>
+    <a class="nav-link" href="https://www.maekeo.kr/" target="_blank">매커포트 구경하기</a>
+  </div>
+  <div class="seg-wrap">
+    <div class="segmented">
+      <button class="seg-btn active" onclick="switchTab('grind',this)">분쇄 분석</button>
+      <button class="seg-btn" onclick="switchTab('timer',this)">타이머</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 분쇄 분석 ═══ -->
+<div class="section active" id="grindSection">
+  <div class="gap"></div>
+
+  <!-- 카메라 -->
+  <div class="cam-box" id="camBox">
+    <canvas id="snapCanvas" style="display:none"></canvas>
+    <img id="previewImg" class="preview" style="display:none" alt="">
+    <div class="cam-ph" id="camPh">
+      <div class="cam-ph-title">원두 사진 촬영 안내</div>
+      <div class="cam-ph-sub">흰색 바탕 위에<br>분쇄된 원두를 넓게 펼쳐 촬영하세요</div>
+      <div class="cam-ph-tip">렌즈를 최대한 가깝게 대고<br>터치해 초점을 맞춘 후 촬영하세요</div>
+    </div>
+    <div class="scan-overlay" id="scanOverlay">
+      <div class="scan-line"></div>
+      <div class="scan-lbl">분석 중</div>
+    </div>
+  </div>
+
+  <div class="gap-sm"></div>
+
+  <!-- 버튼 -->
+  <div class="btn-row">
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('camFileInput').click()">카메라로 촬영</button>
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('fileInput').click()">갤러리에서 선택</button>
+  </div>
+  <input type="file" id="camFileInput" accept="image/*" capture="environment" onchange="handleFile(event)">
+  <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
+
+  <!-- 분석 버튼 -->
+  <div class="btn-row" id="analyzeRow" style="display:none">
+    <button class="btn btn-primary" onclick="startAnalysis()">분석 시작</button>
+  </div>
+
+  <!-- 로딩 -->
+  <div class="loading" id="loadingPanel">
+    <div class="spinner"></div>
+    <span class="loading-lbl">분쇄도 분석 중</span>
+  </div>
+
+  <!-- 결과 -->
+  <div class="result" id="resultPanel">
+    <div class="group">
+      <div class="group-hd">분쇄 굵기</div>
+      <div class="card">
+        <div class="meter-wrap">
+          <div class="meter-labels"><span>극세분</span><span>아주 굵게</span></div>
+          <div class="meter-track">
+            <div class="meter-fill" id="meterFill" style="width:0%"><div class="meter-thumb"></div></div>
+          </div>
+        </div>
+        <div style="border-top:.5px solid var(--sep)">
+          <div class="row"><span class="row-label">분쇄 레벨</span><span class="row-value" id="resLevel">—</span></div>
+          <div class="row"><span class="row-label">매커포트 적합도</span><span class="row-value" id="resMokaFit">—</span></div>
+          <div class="row"><span class="row-label">적합 추출</span><span class="row-value" id="resBrew">—</span></div>
+          <div class="row"><span class="row-label">분석 신뢰도</span><span class="badge" id="resBadge">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group">
+      <div class="group-hd">측정값</div>
+      <div class="card">
+        <div class="stats-grid">
+          <div class="stat-cell"><div class="stat-lbl">평균 입자</div><div class="stat-val" id="resSize">—</div></div>
+          <div class="stat-cell"><div class="stat-lbl">균일도</div><div class="stat-val" id="resUni">—</div></div>
+        </div>
+        <div class="row" style="border-top:.5px solid var(--sep)">
+          <span class="row-label" style="font-size:14px;color:var(--label2)">매커포트 적합 범위</span>
+          <span class="row-value" style="font-size:14px;color:var(--blue);font-weight:500">300 — 500 μm</span>
+        </div>
+      </div>
+      <div class="group-ft">측정값은 AI 시각 추정치입니다. 방향 판단 참고용으로 활용하세요.</div>
+    </div>
+    <div class="group">
+      <div class="group-hd">AI 추천</div>
+      <div class="card">
+        <div class="advice-cell">
+          <span class="advice-cap">바리스타 조언</span>
+          <span class="advice-body" id="resAdvice">—</span>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="resetAnalysis()">다시 분석</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 타이머 ═══ -->
+<div class="section" id="timerSection">
+  <div class="gap-sm"></div>
+
+  <!-- 화면 켜기 경고 -->
+  <div class="screen-warn">
+    <span style="font-size:16px">⚠️</span>
+    <span class="screen-warn-text"><strong>화면을 끄지 마세요.</strong> 화면이 꺼지면 알람이 울리지 않을 수 있습니다.</span>
+  </div>
+
+  <!-- 알람 배너 -->
+  <div class="alert warn" id="alertWarn">
+    <div class="alert-title">불을 줄이세요 — 압력 안정화</div>
+    <div class="alert-body">3분 경과. 중약불로 낮춰 7bar 압력을 안정적으로 유지하세요. 타이머는 계속 진행됩니다.</div>
+  </div>
+  <div class="alert danger" id="alertDanger">
+    <div class="alert-title">추출 시간 초과 — 과추출 주의</div>
+    <div class="alert-body">6분을 넘었습니다. 고압 추출이 길어지면 크레마가 무너지고 쓴맛이 강해집니다. 다음엔 초반 불을 더 강하게 올리세요.</div>
+  </div>
+
+  <!-- 타이머 카드 -->
+  <div class="group" style="margin-top:6px">
+    <div class="timer-card">
+      <div class="timer-hero">
+        <div class="ring-wrap">
+          <svg class="timer-svg" viewBox="0 0 196 196">
+            <defs>
+              <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#007AFF"/>
+                <stop offset="100%" stop-color="#5AC8FA"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-bg" cx="98" cy="98" r="85"/>
+            <circle class="ring-fill" id="ringFill" cx="98" cy="98" r="85"/>
+          </svg>
+          <div class="timer-center">
+            <div class="timer-digits" id="timerDisplay">0:00</div>
+            <div class="timer-sub" id="timerSub">/ 6:00</div>
+          </div>
+        </div>
+        <div class="stage-name" id="stageName">시작 준비</div>
+        <div class="stage-desc" id="stageDesc">버튼을 눌러 추출을 시작하세요</div>
+        <div class="prog-dots">
+          <div class="prog-dot" id="dot0"></div>
+          <div class="prog-dot" id="dot1"></div>
+          <div class="prog-dot" id="dot2"></div>
+        </div>
+      </div>
+      <div class="timer-btns">
+        <button class="btn btn-primary" id="startBtn" onclick="toggleTimer()" style="flex:2">시작</button>
+        <button class="btn btn-secondary" onclick="resetTimer()">초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 타임라인 -->
+  <div class="group">
+    <div class="group-hd">추출 타임라인</div>
+    <div class="card" id="stageList"></div>
+  </div>
+
+  <!-- 정보 -->
+  <div class="group">
+    <div class="card">
+      <div class="row"><span class="row-label">총 경과 시간</span><span class="row-value" id="elapsedDisplay" style="font-variant-numeric:tabular-nums">0:00</span></div>
+      <div class="row"><span class="row-label">권장 분쇄도</span><span class="row-value">고운 설탕 (300~500 μm)</span></div>
+      <div class="row"><span class="row-label">물 사용량</span><span class="row-value">뜨거운 물 170 ml</span></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+  <button class="tab-item active" id="tab-grind" onclick="switchTab('grind',null,this)">
+    <span class="tab-pip">GR</span><span class="tab-lbl">분쇄 분석</span>
+  </button>
+  <button class="tab-item" id="tab-timer" onclick="switchTab('timer',null,this)">
+    <span class="tab-pip">TM</span><span class="tab-lbl">타이머</span>
+  </button>
+</div>
+
+<!-- API 키 모달 -->
+<div class="modal-bg" id="modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">분석 설정</div>
+    <div class="modal-desc"><strong>OpenAI API 키</strong> 입력 후 분석이 시작됩니다.<br><a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>에서 발급하세요.</div>
+    <input class="modal-input" id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="modal-btns">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" style="flex:2" onclick="saveAndAnalyze()">저장 후 분석</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══ TAB ═══
+function switchTab(tab, segBtn, tabBtn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(tab === 'grind' ? 'grindSection' : 'timerSection').classList.add('active');
+  document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+  if (segBtn) segBtn.classList.add('active');
+  else document.querySelectorAll('.seg-btn')[tab === 'grind' ? 0 : 1].classList.add('active');
+  document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
+  if (tabBtn) tabBtn.classList.add('active');
+  else document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ═══ 분석 ═══
+let currentBase64 = null;
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentBase64 = ev.target.result.split(',')[1];
+    document.getElementById('previewImg').src = ev.target.result;
+    document.getElementById('previewImg').style.display = 'block';
+    document.getElementById('camPh').style.display = 'none';
+    document.getElementById('analyzeRow').style.display = 'flex';
+    document.getElementById('resultPanel').classList.remove('show');
+  };
+  reader.readAsDataURL(file);
+}
+
+function startAnalysis() {
+  if (!currentBase64) { toast('사진을 먼저 선택해주세요'); return; }
+  const apiKey = localStorage.getItem('maekeo_api_key');
+  if (!apiKey) { showModal(); return; }
+  document.getElementById('analyzeRow').style.display = 'none';
+  doAnalysis();
+}
+
+async function doAnalysis() {
+  document.getElementById('resultPanel').classList.remove('show');
+  document.getElementById('loadingPanel').classList.add('show');
+  document.getElementById('scanOverlay').classList.add('show');
+
+  try {
+    const result = await callAPI(currentBase64);
+    document.getElementById('loadingPanel').classList.remove('show');
+    document.getElementById('scanOverlay').classList.remove('show');
+    if (result) showResult(result);
+    else document.getElementById('analyzeRow').style.display = 'flex';
+  } catch(e) {
+    document.getElementById('loadingPanel').classList.remove('show');
+    document.getElementById('scanOverlay').classList.remove('show');
+    console.error(e);
+    if (e.message === 'INVALID_KEY') {
+      localStorage.removeItem('maekeo_api_key');
+      toast('API 키가 올바르지 않습니다. 다시 입력해주세요.');
+      showModal();
+    } else {
+      toast(e.message || '분석 실패. 다시 시도해주세요.');
+      document.getElementById('analyzeRow').style.display = 'flex';
+    }
+  }
+}
+
+async function callAPI(base64) {
+  // 1) Netlify Function
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 15000);
+    const r = await fetch('/.netlify/functions/analyze-grind', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+      body: JSON.stringify({ image: base64 })
+    });
+    clearTimeout(tid);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.result) return normalize(d.result);
+    }
+  } catch(e) {}
+
+  // 2) 직접 OpenAI 호출
+  const apiKey = localStorage.getItem('maekeo_api_key');
+  if (!apiKey) throw new Error('API 키 없음');
+
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 45000);
+
+  let r;
+  try {
+    r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        max_tokens: 800,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}`, detail: 'high' } },
+            { type: 'text', text: `커피 원두 분쇄도를 분석하세요. 흰색 바탕 위 분쇄 원두 사진입니다.\n커피 원두가 아니면 isCoffee:false.\n매커포트 최적: 300~500μm.\nJSON만 반환:\n{"level":"극세분/세분/중간/굵게/아주굵게","levelKor":"한글명","percent":숫자,"particleSize":숫자,"uniformity":숫자,"mokaFit":"최적/약간 고움/많이 고움/약간 굵음/많이 굵음","bestBrew":"추출방식","advice":"2문장","isCoffee":true}` }
+          ]
+        }]
+      })
+    });
+  } catch(e) {
+    clearTimeout(tid);
+    if (e.name === 'AbortError') throw new Error('시간 초과. 네트워크를 확인하세요.');
+    throw new Error('네트워크 오류: ' + e.message);
+  }
+  clearTimeout(tid);
+
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('INVALID_KEY');
+    if (r.status === 429) throw new Error('API 한도 초과. 잠시 후 다시 시도하세요.');
+    throw new Error(`API 오류 (${r.status})`);
+  }
+
+  const d = await r.json();
+  const text = d.choices?.[0]?.message?.content || '';
+  if (!text) throw new Error('응답이 비어있습니다');
+
+  let parsed;
+  try { parsed = JSON.parse(text.replace(/```json|```/g,'').trim()); }
+  catch { const m = text.match(/\{[\s\S]*\}/); if (!m) throw new Error('응답 파싱 실패'); parsed = JSON.parse(m[0]); }
+
+  return normalize(parsed);
+}
+
+function normalize(r) {
+  if (r.isCoffee === false) { toast('커피 원두 사진을 촬영해주세요'); return null; }
+  return {
+    percent:      Math.min(100, Math.max(0, Number(r.percent) || 50)),
+    particleSize: Number(r.particleSize) || 400,
+    uniformity:   Number(r.uniformity)   || 60,
+    levelKor:     r.levelKor || r.level  || '중간',
+    bestBrew:     r.bestBrew             || '매커포트',
+    advice:       r.advice               || '분석 완료.',
+    mokaFit:      r.mokaFit              || '—',
+  };
+}
+
+function showResult(r) {
+  document.getElementById('resultPanel').classList.add('show');
+  setTimeout(() => { document.getElementById('meterFill').style.width = r.percent + '%'; }, 80);
+  document.getElementById('resLevel').textContent  = r.levelKor;
+  document.getElementById('resBrew').textContent   = r.bestBrew;
+  document.getElementById('resAdvice').textContent = r.advice;
+  document.getElementById('resSize').innerHTML     = `${r.particleSize}<span class="stat-unit"> μm</span>`;
+  document.getElementById('resUni').innerHTML      = `${r.uniformity}<span class="stat-unit"> %</span>`;
+
+  const fitEl = document.getElementById('resMokaFit');
+  fitEl.textContent = r.mokaFit;
+  fitEl.style.color = r.mokaFit.includes('최적') ? 'var(--green)'
+    : r.mokaFit.includes('약간') ? 'var(--orange)'
+    : r.mokaFit.includes('많이') ? 'var(--red)' : 'var(--label2)';
+
+  const conf = r.uniformity >= 75 ? 'high' : r.uniformity >= 55 ? 'mid' : 'low';
+  const confEl = document.getElementById('resBadge');
+  confEl.textContent = conf === 'high' ? '높음' : conf === 'mid' ? '보통' : '낮음';
+  confEl.className = `badge badge-${conf}`;
+}
+
+function resetAnalysis() {
+  currentBase64 = null;
+  document.getElementById('previewImg').style.display = 'none';
+  document.getElementById('camPh').style.display = 'flex';
+  document.getElementById('resultPanel').classList.remove('show');
+  document.getElementById('loadingPanel').classList.remove('show');
+  document.getElementById('scanOverlay').classList.remove('show');
+  document.getElementById('analyzeRow').style.display = 'none';
+  document.getElementById('meterFill').style.width = '0%';
+  document.getElementById('camFileInput').value = '';
+  document.getElementById('fileInput').value = '';
+}
+
+// ═══ MODAL ═══
+function showModal() {
+  const saved = localStorage.getItem('maekeo_api_key') || '';
+  document.getElementById('apiKeyInput').value = saved ? '••••••••' : '';
+  document.getElementById('modal').classList.add('show');
+  setTimeout(() => document.getElementById('apiKeyInput').focus(), 350);
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  document.getElementById('apiKeyInput').value = '';
+}
+function saveAndAnalyze() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key || key === '••••••••') {
+    if (localStorage.getItem('maekeo_api_key')) { closeModal(); doAnalysis(); return; }
+    toast('API 키를 입력해주세요'); return;
+  }
+  if (!key.startsWith('sk-')) { toast('올바른 형식이 아닙니다 (sk-... 로 시작)'); return; }
+  localStorage.setItem('maekeo_api_key', key);
+  closeModal();
+  toast('저장 완료. 분석을 시작합니다.');
+  setTimeout(doAnalysis, 500);
+}
+
+// ═══ TIMER ═══
+const RING_C = 534, WARN_AT = 180, DANGER_AT = 360;
+let startedAt = null, accElapsed = 0, timerRAF = null, timerInterval = null;
+let isRunning = false, warnFired = false, dangerFired = false;
+
+function getElapsed() {
+  if (!isRunning) return Math.floor(accElapsed / 1000);
+  return Math.floor((accElapsed + (Date.now() - startedAt)) / 1000);
+}
+
+function initTimer() { renderStages(); updateTimerUI(); }
+
+function renderStages() {
+  document.getElementById('stageList').innerHTML = `
+    <div class="tl-row upcoming" id="sRow0"><div class="tl-dot" id="tDot0"></div><div class="tl-info"><div class="tl-name">중불 가열</div><div class="tl-time">0:00 — 3:00 · 압력 생성 대기</div></div><div class="tl-badge" id="sBadge0">대기</div></div>
+    <div class="tl-row upcoming" id="sRow1"><div class="tl-dot" id="tDot1"></div><div class="tl-info"><div class="tl-name">불 줄이기</div><div class="tl-time">3:00 알람 · 압력 안정화</div></div><div class="tl-badge" id="sBadge1">대기</div></div>
+    <div class="tl-row upcoming" id="sRow2"><div class="tl-dot" id="tDot2"></div><div class="tl-info"><div class="tl-name">추출 시간 초과</div><div class="tl-time">6:00 알람 · 과추출 주의</div></div><div class="tl-badge" id="sBadge2">대기</div></div>
+    <div class="tl-row upcoming" id="sRow3"><div class="tl-dot" id="tDot3"></div><div class="tl-info"><div class="tl-name">불 끄기</div><div class="tl-time">추출이 시작될 때 즉시</div></div><div class="tl-badge" id="sBadge3">대기</div></div>
+  `;
+}
+
+function fmt(s) { return `${Math.floor(Math.abs(s)/60)}:${String(Math.abs(s)%60).padStart(2,'0')}`; }
+
+function updateTimerUI() {
+  const t = getElapsed();
+  let nm, dc;
+  if      (t===0)        { nm='시작 준비';   dc='버튼을 눌러 추출을 시작하세요'; }
+  else if (t<WARN_AT)    { nm='중불 가열 중'; dc=`압력 생성 대기 — 3분 알람까지 ${fmt(WARN_AT-t)} 남음`; }
+  else if (t<DANGER_AT)  { nm='압력 안정화';  dc=`불 줄이기 — 7bar 유지 중 · ${fmt(t)} 경과`; }
+  else                   { nm='과추출 주의';  dc=`${fmt(t)} 경과 — 다음엔 초반 불을 더 강하게`; }
+  document.getElementById('stageName').textContent = nm;
+  document.getElementById('stageDesc').textContent = dc;
+  document.getElementById('timerDisplay').textContent   = fmt(t);
+  document.getElementById('timerSub').textContent       = t < DANGER_AT ? `/ ${fmt(DANGER_AT)}` : '초과';
+  document.getElementById('elapsedDisplay').textContent = fmt(t);
+
+  const rf = document.getElementById('ringFill');
+  rf.style.strokeDashoffset = RING_C - RING_C * Math.min(t/DANGER_AT, 1);
+  rf.style.stroke = t>=DANGER_AT ? '#FF3B30' : t>=WARN_AT ? '#FF9500' : 'url(#rg)';
+
+  const sd = (i,c) => { const d=document.getElementById('dot'+i); if(d) d.className='prog-dot '+c; };
+  if      (t===0)       { sd(0,'');      sd(1,'');      sd(2,''); }
+  else if (t<WARN_AT)   { sd(0,'active');sd(1,'');      sd(2,''); }
+  else if (t<DANGER_AT) { sd(0,'done'); sd(1,'active'); sd(2,''); }
+  else                  { sd(0,'done'); sd(1,'done');   sd(2,'active'); }
+
+  const upd = (i,s) => {
+    const row=document.getElementById('sRow'+i),dot=document.getElementById('tDot'+i),b=document.getElementById('sBadge'+i);
+    if(!row) return;
+    row.className='tl-row '+s;
+    dot.className='tl-dot '+(s==='current'?'current':s==='done'?'done':'');
+    b.textContent=s==='done'?'완료':s==='current'?'진행 중':'대기';
+    b.className='tl-badge '+(s==='done'?'done':s==='current'?'current':'');
+  };
+  if      (t===0)       { upd(0,'upcoming');upd(1,'upcoming');upd(2,'upcoming');upd(3,'upcoming'); }
+  else if (t<WARN_AT)   { upd(0,'current'); upd(1,'upcoming');upd(2,'upcoming');upd(3,'upcoming'); }
+  else if (t<DANGER_AT) { upd(0,'done');    upd(1,'current'); upd(2,'upcoming');upd(3,'upcoming'); }
+  else                  { upd(0,'done');    upd(1,'done');    upd(2,'current'); upd(3,'upcoming'); }
+}
+
+function rafLoop() { updateTimerUI(); timerRAF = requestAnimationFrame(rafLoop); }
+
+function checkAlarms() {
+  const t = getElapsed();
+  if (t >= WARN_AT && !warnFired) {
+    warnFired = true; playBeep('warn'); flash('warn');
+    document.getElementById('alertWarn').classList.add('show');
+    toast('3분 경과 — 불을 줄이세요');
+  }
+  if (t >= DANGER_AT && !dangerFired) {
+    dangerFired = true; playBeep('danger'); flash('danger');
+    document.getElementById('alertDanger').classList.add('show');
+    toast('6분 초과 — 과추출 주의');
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!isRunning || document.visibilityState !== 'visible') return;
+  checkAlarms(); updateTimerUI();
+  if (timerRAF) cancelAnimationFrame(timerRAF);
+  timerRAF = requestAnimationFrame(rafLoop);
+});
+
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) try { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){ return null; }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+  return audioCtx;
+}
+function playBeep(type) {
+  try {
+    const ctx = ensureAudio(); if (!ctx) return;
+    const freqs = type==='warn' ? [880,880,1100] : [440,330,440,330,220];
+    let t = ctx.currentTime;
+    freqs.forEach(f => {
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value=f; o.type='sine';
+      g.gain.setValueAtTime(0.22,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+      o.start(t); o.stop(t+0.22); t+=0.27;
+    });
+    if (navigator.vibrate) navigator.vibrate(type==='warn' ? [180,80,180] : [280,90,280,90,280]);
+  } catch(e){}
+}
+function playStartSound() {
+  try {
+    const ctx = ensureAudio(); if (!ctx) return;
+    let t = ctx.currentTime;
+    [440,440,440].forEach(f => {
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value=f; o.type='sine';
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+      o.start(t); o.stop(t+0.12); t+=0.28;
+    });
+    const o2=ctx.createOscillator(), g2=ctx.createGain();
+    o2.connect(g2); g2.connect(ctx.destination); o2.type='sine';
+    o2.frequency.setValueAtTime(660,t); o2.frequency.linearRampToValueAtTime(880,t+0.15);
+    g2.gain.setValueAtTime(0,t); g2.gain.linearRampToValueAtTime(0.3,t+0.03); g2.gain.exponentialRampToValueAtTime(0.001,t+0.45);
+    o2.start(t); o2.stop(t+0.45);
+    if (navigator.vibrate) navigator.vibrate([30,60,30,60,120]);
+  } catch(e){}
+}
+function flash(type) {
+  const cls = type==='warn' ? 'flash-warn' : 'flash-danger';
+  document.body.classList.remove('flash-warn','flash-danger');
+  void document.body.offsetWidth;
+  document.body.classList.add(cls);
+  setTimeout(() => document.body.classList.remove(cls), type==='warn' ? 1700 : 2200);
+}
+
+function toggleTimer() {
+  ensureAudio();
+  if (isRunning) {
+    accElapsed += Date.now() - startedAt;
+    isRunning = false;
+    cancelAnimationFrame(timerRAF); timerRAF = null;
+    clearInterval(timerInterval); timerInterval = null;
+    document.getElementById('startBtn').textContent = '계속';
+  } else {
+    const first = accElapsed === 0;
+    startedAt = Date.now(); isRunning = true;
+    document.getElementById('startBtn').textContent = '일시정지';
+    if (first) { playStartSound(); toast('추출 시작'); }
+    timerRAF = requestAnimationFrame(rafLoop);
+    timerInterval = setInterval(checkAlarms, 500);
+  }
+  updateTimerUI();
+}
+
+function resetTimer() {
+  cancelAnimationFrame(timerRAF); timerRAF = null;
+  clearInterval(timerInterval); timerInterval = null;
+  isRunning=false; startedAt=null; accElapsed=0; warnFired=false; dangerFired=false;
+  document.getElementById('startBtn').textContent = '시작';
+  document.getElementById('alertWarn').classList.remove('show');
+  document.getElementById('alertDanger').classList.remove('show');
+  document.getElementById('ringFill').style.stroke = 'url(#rg)';
+  renderStages(); updateTimerUI();
+}
+
+// ═══ TOAST ═══
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+initTimer();
+</script>
+</body>
+</html>
