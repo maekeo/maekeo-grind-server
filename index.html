@@ -377,7 +377,9 @@ body.flash-danger{animation:flashDanger .35s ease 6}
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">분석 설정</div>
-    <div class="modal-desc"><strong>OpenAI API 키</strong> 입력 후 분석이 시작됩니다.<br><a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>에서 발급하세요.</div>
+    <div class="modal-desc"><strong>OpenCV 서버 URL</strong> (정밀 분석 — Render 배포 후 입력)</div>
+    <input class="modal-input" id="cvServerInput" type="url" placeholder="https://maekeo-grind-server.onrender.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="modal-desc"><strong>OpenAI API 키</strong> (서버 없을 때 사용)</div>
     <input class="modal-input" id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="modal-btns">
       <button class="btn btn-secondary" style="flex:1" onclick="closeModal()">취소</button>
@@ -455,7 +457,27 @@ async function doAnalysis() {
 }
 
 async function callAPI(base64) {
-  // 1) Netlify Function
+  // 1) OpenCV 서버 시도 (정밀 분석)
+  const cvServer = localStorage.getItem('maekeo_cv_server');
+  if (cvServer) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 60000); // Render 콜드스타트 대비 60초
+      const r = await fetch(cvServer + '/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: ctrl.signal,
+        body: JSON.stringify({ image: base64 })
+      });
+      clearTimeout(tid);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.result) return normalize(d.result);
+      }
+    } catch(e) { console.warn('OpenCV 서버 실패:', e.message); }
+  }
+
+  // 2) Netlify Function 시도
   try {
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 15000);
@@ -570,24 +592,39 @@ function resetAnalysis() {
 
 // ═══ MODAL ═══
 function showModal() {
-  const saved = localStorage.getItem('maekeo_api_key') || '';
-  document.getElementById('apiKeyInput').value = saved ? '••••••••' : '';
+  const savedKey = localStorage.getItem('maekeo_api_key') || '';
+  const savedCV  = localStorage.getItem('maekeo_cv_server') || '';
+  document.getElementById('apiKeyInput').value  = savedKey ? '••••••••' : '';
+  document.getElementById('cvServerInput').value = savedCV;
   document.getElementById('modal').classList.add('show');
-  setTimeout(() => document.getElementById('apiKeyInput').focus(), 350);
+  setTimeout(() => document.getElementById('cvServerInput').focus(), 350);
 }
 function closeModal() {
   document.getElementById('modal').classList.remove('show');
-  document.getElementById('apiKeyInput').value = '';
+  document.getElementById('apiKeyInput').value  = '';
+  document.getElementById('cvServerInput').value = '';
 }
 function saveAndAnalyze() {
-  const key = document.getElementById('apiKeyInput').value.trim();
-  if (!key || key === '••••••••') {
-    if (localStorage.getItem('maekeo_api_key')) { closeModal(); doAnalysis(); return; }
-    toast('API 키를 입력해주세요'); return;
+  const key      = document.getElementById('apiKeyInput').value.trim();
+  const cvServer = document.getElementById('cvServerInput').value.trim();
+
+  // CV 서버 저장
+  if (cvServer) localStorage.setItem('maekeo_cv_server', cvServer.replace(/\/$/, ''));
+  else localStorage.removeItem('maekeo_cv_server');
+
+  // API 키 저장
+  if (key && key !== '••••••••') {
+    if (!key.startsWith('sk-')) { toast('올바른 형식이 아닙니다 (sk-... 로 시작)'); return; }
+    localStorage.setItem('maekeo_api_key', key);
   }
-  if (!key.startsWith('sk-')) { toast('올바른 형식이 아닙니다 (sk-... 로 시작)'); return; }
-  localStorage.setItem('maekeo_api_key', key);
+
+  // 둘 다 없으면 경고
+  const hasCV  = !!localStorage.getItem('maekeo_cv_server');
+  const hasKey = !!localStorage.getItem('maekeo_api_key');
+  if (!hasCV && !hasKey) { toast('서버 URL 또는 API 키를 입력해주세요'); return; }
+
   closeModal();
+  document.getElementById('analyzeRow').style.display = 'none';
   toast('저장 완료. 분석을 시작합니다.');
   setTimeout(doAnalysis, 500);
 }
