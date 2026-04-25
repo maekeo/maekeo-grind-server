@@ -191,7 +191,10 @@ body.flash-danger{animation:flashDanger .35s ease 6}
 <div class="nav">
   <div class="nav-inner">
     <span class="nav-title">MAEKEO LAB</span>
-    <a class="nav-link" href="https://www.maekeo.kr/" target="_blank">매커포트 구경하기</a>
+    <div style="display:flex;gap:6px">
+      <a class="nav-link" href="https://smartstore.naver.com/maeco/category/66a46182ceea449f99b08df30c998d7a?cp=1" target="_blank" style="padding:8px 14px;font-size:13px">소모품</a>
+      <a class="nav-link" href="https://www.maekeo.kr/" target="_blank" style="padding:8px 14px;font-size:13px">매커포트</a>
+    </div>
   </div>
   <div class="seg-wrap">
     <div class="segmented">
@@ -480,7 +483,7 @@ async function callAPI(base64) {
   // 2) Netlify Function 시도
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 15000);
+    const tid = setTimeout(() => ctrl.abort(), 30000);
     const r = await fetch('/.netlify/functions/analyze-grind', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -488,11 +491,15 @@ async function callAPI(base64) {
       body: JSON.stringify({ image: base64 })
     });
     clearTimeout(tid);
-    if (r.ok) {
-      const d = await r.json();
-      if (d.result) return normalize(d.result);
+    const d = await r.json();
+    if (r.ok && d.result) return normalize(d.result);
+    if (d.error) throw new Error(d.error);
+  } catch(e) {
+    // Function 없는 환경에서만 직접 호출로 fallback
+    if (!e.message.includes('Failed to fetch') && !e.message.includes('NetworkError')) {
+      throw e; // Netlify Function 오류는 그대로 전달
     }
-  } catch(e) {}
+  }
 
   // 2) 직접 OpenAI 호출
   const apiKey = localStorage.getItem('maekeo_api_key');
