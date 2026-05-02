@@ -35,7 +35,20 @@ def analyze(req: ImageRequest):
 
         h, w = img.shape[:2]
 
-        # 2. 동전 감지
+        # 2. 이미지 품질 검사
+        quality_issues, sharpness, brightness, coffee_ratio = check_image_quality(img)
+
+        quality_warnings = []
+        if "blur" in quality_issues:
+            quality_warnings.append("초점이 흐립니다. 렌즈를 닦고 탭하여 초점을 맞춘 후 다시 촬영하세요.")
+        if "dark" in quality_issues:
+            quality_warnings.append("조명이 부족합니다. 더 밝은 환경에서 촬영하세요.")
+        if "bright" in quality_issues:
+            quality_warnings.append("사진이 너무 밝습니다. 직사광선을 피하고 다시 촬영하세요.")
+        if "too_far" in quality_issues:
+            quality_warnings.append("원두가 너무 작게 찍혔습니다. 더 가까이 촬영하세요.")
+
+        # 3. 동전 감지
         px_per_mm = detect_coin(img)
 
         # 3. 입자 분석 (일반 입자 + 미분 분리)
@@ -105,6 +118,8 @@ def analyze(req: ImageRequest):
                 "advice":        advice,
                 "calibrated":    px_per_mm is not None,
                 "method":        method,
+                "qualityWarnings": quality_warnings,
+                "sharpness":     round(sharpness, 1),
                 "isCoffee":      True,
             }
         }
@@ -239,3 +254,33 @@ def generate_advice(avg_um, moka_fit, std_um, fines_ratio):
         base += f" 미분 비율({fines_ratio}%)이 높습니다. 미분이 많으면 과추출로 쓴맛이 날 수 있습니다."
 
     return base
+
+
+def check_image_quality(img):
+    """이미지 품질 검사 — 흐림/어두움/원두 면적 체크"""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h, w = img.shape[:2]
+
+    issues = []
+
+    # 1. 흐림 감지 (Laplacian 분산)
+    laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+    if laplacian_var < 50:
+        issues.append("blur")  # 초점 흐림
+
+    # 2. 밝기 검사
+    mean_brightness = float(np.mean(gray))
+    if mean_brightness < 60:
+        issues.append("dark")  # 너무 어두움
+    elif mean_brightness > 230:
+        issues.append("bright")  # 너무 밝음 (과노출)
+
+    # 3. 원두 면적 검사
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    coffee_pixels = np.sum(binary > 0)
+    coffee_ratio = coffee_pixels / (h * w)
+    if coffee_ratio < 0.05:
+        issues.append("too_far")  # 원두가 너무 작음
+
+    return issues, laplacian_var, mean_brightness, coffee_ratio
