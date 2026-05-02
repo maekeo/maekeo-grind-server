@@ -3,11 +3,19 @@ import numpy as np
 import base64
 import math
 import json
+import gc
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
 
 app = FastAPI()
+
+# 모든 호스트 허용
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["*"]
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,14 +36,21 @@ def root():
 @app.post("/analyze")
 def analyze(req: ImageRequest):
     try:
-        # 1. base64 → numpy 이미지
+        # 1. base64 → numpy 이미지 (메모리 최적화)
         img_bytes = base64.b64decode(req.image)
         np_arr = np.frombuffer(img_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        del img_bytes, np_arr  # 즉시 메모리 해제
         if img is None:
             raise HTTPException(status_code=400, detail="이미지 디코딩 실패")
 
+        # 메모리 절약 — 800px로 리사이즈
         h, w = img.shape[:2]
+        max_dim = 800
+        if max(h, w) > max_dim:
+            scale = max_dim / max(h, w)
+            img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+            h, w = img.shape[:2]
 
         # 2. 이미지 품질 검사
         quality_issues, sharpness, brightness, coffee_ratio = check_image_quality(img)
@@ -130,53 +145,63 @@ def analyze(req: ImageRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"분석 오류: {str(e)}")
+    finally:
+        gc.collect()  # 강제 메모리 정리
 
 
 def detect_coin(img):
-    """동전 감지 → px/mm 반환"""
+    """동전 감지 → px/mm 반환 (메모리 최적화)"""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray_blur = cv2.GaussianBlur(gray, (9, 9), 2)
-    h, w = gray.shape
+    del gray
+    h, w = gray_blur.shape
 
     circles = cv2.HoughCircles(
         gray_blur, cv2.HOUGH_GRADIENT, dp=1,
         minDist=w // 4, param1=50, param2=30,
         minRadius=int(w * 0.05), maxRadius=int(w * 0.25),
     )
+    del gray_blur
+
     if circles is not None:
         circles = np.round(circles[0, :]).astype("int")
         largest = max(circles, key=lambda c: c[2])
-        # 100원(24mm) 또는 500원(26.5mm) — 평균 25mm로 추정
         return (largest[2] * 2) / 25.0
     return None
 
 
 def detect_particles_with_fines(img):
-    """입자와 미분을 분리해서 감지"""
+    """입자와 미분을 분리해서 감지 (메모리 최적화)"""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    del img  # BGR 이미지 즉시 해제
+
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    del gray
+
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    del blurred
 
     kernel = np.ones((3, 3), np.uint8)
     cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
     cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=1)
+    del binary
 
     contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    h, w = cleaned.shape
+    del cleaned
 
-    h, w = img.shape[:2]
     img_area = h * w
-
-    particles = []  # 일반 입자
-    fines = []      # 미분 (매우 작은 입자)
+    particles = []
+    fines = []
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
         if area < img_area * 0.000005:
-            continue  # 노이즈 제거
+            continue
         elif area < img_area * 0.0002:
-            fines.append(area)      # 미분
+            fines.append(area)
         elif area < img_area * 0.05:
-            particles.append(area)  # 일반 입자
+            particles.append(area)
 
     return particles, fines
 
