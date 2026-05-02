@@ -6,16 +6,9 @@ import json
 import gc
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
 
 app = FastAPI()
-
-# 모든 호스트 허용
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["*"]
-)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,7 +16,6 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 class ImageRequest(BaseModel):
