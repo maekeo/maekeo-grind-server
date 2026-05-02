@@ -163,19 +163,24 @@ def detect_coin(img):
 
 
 def detect_particles_with_fines(img):
-    """입자와 미분을 분리해서 감지 (메모리 최적화)"""
+    """입자와 미분을 분리해서 감지 (메모리 최적화 + 노이즈 필터 강화)"""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    del img  # BGR 이미지 즉시 해제
+    del img
 
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    blurred = cv2.GaussianBlur(gray, (7, 7), 0)
     del gray
 
-    _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    del blurred
+    # 적응형 이진화 — 배경 오염에 강함
+    binary_otsu = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    binary_adapt = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                          cv2.THRESH_BINARY_INV, 21, 4)
+    # 두 방법 AND 조합 — 배경 오염 최소화
+    binary = cv2.bitwise_and(binary_otsu, binary_adapt)
+    del blurred, binary_otsu, binary_adapt
 
     kernel = np.ones((3, 3), np.uint8)
-    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
-    cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=1)
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=3)
+    cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
     del binary
 
     contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -188,12 +193,20 @@ def detect_particles_with_fines(img):
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < img_area * 0.000005:
+        # 원형도 체크 — 배경 얼룩은 불규칙한 형태
+        perimeter = cv2.arcLength(cnt, True)
+        if perimeter == 0:
             continue
-        elif area < img_area * 0.0002:
-            fines.append(area)
-        elif area < img_area * 0.05:
-            particles.append(area)
+        circularity = 4 * math.pi * area / (perimeter * perimeter)
+
+        if area < img_area * 0.000008:
+            continue  # 너무 작은 노이즈 제거
+        elif area < img_area * 0.0003:
+            if circularity > 0.15:  # 너무 불규칙한 형태 제외
+                fines.append(area)
+        elif area < img_area * 0.04:
+            if circularity > 0.1:
+                particles.append(area)
 
     return particles, fines
 
