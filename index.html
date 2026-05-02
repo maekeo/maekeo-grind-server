@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MAEKEO LAB</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MAEKEO LAB">
+<meta name="theme-color" content="#007AFF">
 <style>
 :root {
   --bg:#F2F2F7; --bg2:#FFFFFF; --bg3:#E5E5EA;
@@ -29,7 +34,7 @@ body{font-family:-apple-system,'Helvetica Neue',sans-serif;-webkit-font-smoothin
 /* NAV */
 .nav{position:sticky;top:0;z-index:100;background:rgba(242,242,247,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:.5px solid var(--sep);padding-top:max(env(safe-area-inset-top),20px)}
 @media(prefers-color-scheme:dark){.nav{background:rgba(0,0,0,.9)}}
-.nav-inner{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 16px}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:50px;padding:0 16px}
 .nav-title{font-size:17px;font-weight:600;letter-spacing:-.4px}
 .nav-link{font-size:12px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:6px 12px;border-radius:20px;text-decoration:none;white-space:nowrap}
 .seg-wrap{padding:8px 16px 10px}
@@ -182,29 +187,83 @@ body.flash-danger{animation:flashDanger .35s ease 6}
 
 #fileInput,#camFileInput{display:none}
 .gap{height:16px}.gap-sm{height:10px}
+/* 히스토그램 */
+.histogram{padding:12px 16px 16px;border-top:.5px solid var(--sep)}
+.histogram-lbl{font-size:11px;font-weight:500;color:var(--label2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px}
+.histogram-bars{display:flex;align-items:flex-end;gap:3px;height:60px}
+.histogram-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.histogram-bar{width:100%;border-radius:3px 3px 0 0;transition:height .6s ease;min-height:2px}
+.histogram-bar.optimal{background:var(--blue)}
+.histogram-bar.warn{background:var(--orange)}
+.histogram-bar.danger{background:var(--red)}
+.histogram-bar.empty{background:var(--fill)}
+.histogram-range{font-size:7px;color:var(--label3);text-align:center;white-space:nowrap;overflow:hidden}
+/* PWA 설치 안내 */
+.install-overlay{display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:flex-end;justify-content:center}
+.install-overlay.show{display:flex}
+.install-sheet{background:var(--bg2);border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:430px;animation:sheetUp .3s cubic-bezier(.25,.46,.45,.94)}
+.install-title{font-size:20px;font-weight:700;color:var(--label);letter-spacing:-.5px;margin-bottom:8px}
+.install-desc{font-size:15px;color:var(--label2);line-height:1.6;margin-bottom:20px}
+.install-steps{background:var(--bg3);border-radius:12px;padding:16px;margin-bottom:20px}
+.install-step{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:var(--label);line-height:1.5}
+.install-step:last-child{margin-bottom:0}
+.install-step-num{background:var(--blue);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px}
+/* 업데이트 배너 */
+.update-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:500;background:var(--blue);color:#fff;padding:max(env(safe-area-inset-top),12px) 16px 12px;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:500}
+.update-banner.show{display:flex}
+.update-btn{background:rgba(255,255,255,.25);border:none;border-radius:8px;color:#fff;font-family:inherit;font-size:13px;font-weight:600;padding:6px 14px;cursor:pointer;white-space:nowrap}
 </style>
 </head>
 <body>
+<!-- PWA 설치 안내 팝업 -->
+<div class="install-overlay" id="installOverlay">
+  <div class="install-sheet">
+    <div class="modal-handle"></div>
+    <div class="install-title">앱으로 설치하기 📲</div>
+    <div class="install-desc">홈 화면에 추가하면 앱처럼 빠르게 실행할 수 있습니다.</div>
+    <div class="install-steps" id="installSteps">
+      <!-- iOS / Android 별로 JS에서 채움 -->
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="dismissInstall()">오늘 하루 안 보기</button>
+      <button class="btn btn-primary" style="flex:1" onclick="dismissInstall()">확인</button>
+    </div>
+  </div>
+</div>
+<!-- 업데이트 배너 -->
+<div class="update-banner" id="updateBanner">
+  <span>새 버전이 있습니다 🎉</span>
+  <div style="display:flex;gap:8px">
+    <button class="update-btn" onclick="dismissUpdate()">나중에</button>
+    <button class="update-btn" onclick="applyUpdate()" style="background:rgba(255,255,255,.4)">업데이트</button>
+  </div>
+</div>
+
 <div class="app">
 
 <!-- NAV -->
 <div class="nav">
   <div class="nav-inner">
-    <span class="nav-title">MAEKEO LAB</span>
-    <div style="display:flex;gap:6px">
-      <a class="nav-link" href="https://smartstore.naver.com/maeco/category/66a46182ceea449f99b08df30c998d7a?cp=1" target="_blank" style="padding:8px 14px;font-size:13px">소모품</a>
-      <a class="nav-link" href="https://www.maekeo.kr/" target="_blank" style="padding:8px 14px;font-size:13px">매커포트</a>
+    <div style="display:flex;flex-direction:column;gap:1px">
+      <span class="nav-title">MAEKEO LAB</span>
+      <span style="font-size:10px;color:var(--label3);letter-spacing:.3px">v1.0.3</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button onclick="cycleLang()" style="border:none;background:var(--fill);color:var(--blue);font-family:inherit;font-size:12px;font-weight:700;padding:6px 10px;border-radius:20px;cursor:pointer" id="langBtn">한</button>
+      <a class="nav-link" href="https://smartstore.naver.com/maeco/category/66a46182ceea449f99b08df30c998d7a?cp=1" target="_blank" style="padding:8px 14px;font-size:13px" id="navShop">소모품</a>
+      <a class="nav-link" href="https://www.maekeo.kr/" target="_blank" style="padding:8px 14px;font-size:13px" id="navProduct">매커포트</a>
     </div>
   </div>
   <div class="seg-wrap">
     <div class="segmented">
-      <button class="seg-btn active" onclick="switchTab('grind',this)">분쇄 분석</button>
-      <button class="seg-btn" onclick="switchTab('timer',this)">타이머</button>
+      <button class="seg-btn active" onclick="switchTab('grind',this)" id="seg0">분쇄분석AI</button>
+      <button class="seg-btn" onclick="switchTab('timer',this)" id="seg1">타이머</button>
+      <button class="seg-btn" onclick="switchTab('history',this)" id="seg2">기록</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ 분쇄 분석 ═══ -->
+<!-- ═══ 분쇄분석AI ═══ -->
 <div class="section active" id="grindSection">
   <div class="gap"></div>
 
@@ -214,7 +273,7 @@ body.flash-danger{animation:flashDanger .35s ease 6}
     <img id="previewImg" class="preview" style="display:none" alt="">
     <div class="cam-ph" id="camPh">
       <div class="cam-ph-title">원두 사진 촬영 안내</div>
-      <div class="cam-ph-sub">흰색 바탕 위에<br>분쇄된 원두를 넓게 펼쳐 촬영하세요</div>
+      <div class="cam-ph-sub">흰색 바탕 위에 분쇄된 원두를 넓게 펼쳐 촬영하세요<br>100원 동전을 함께 놓으면 더 정확합니다</div>
       <div class="cam-ph-tip">렌즈를 최대한 가깝게 대고<br>터치해 초점을 맞춘 후 촬영하세요</div>
     </div>
     <div class="scan-overlay" id="scanOverlay">
@@ -260,6 +319,8 @@ body.flash-danger{animation:flashDanger .35s ease 6}
           <div class="row"><span class="row-label">매커포트 적합도</span><span class="row-value" id="resMokaFit">—</span></div>
           <div class="row"><span class="row-label">적합 추출</span><span class="row-value" id="resBrew">—</span></div>
           <div class="row"><span class="row-label">분석 신뢰도</span><span class="badge" id="resBadge">—</span></div>
+          <div class="row"><span class="row-label">분석 방식</span><span class="row-value" id="resMethod" style="font-size:13px;color:var(--label2)">—</span></div>
+          <div id="confReason" style="display:none; padding:10px 16px 12px; font-size:13px; color:var(--label2); line-height:1.5; border-top:.5px solid var(--sep);"></div>
         </div>
       </div>
     </div>
@@ -269,6 +330,13 @@ body.flash-danger{animation:flashDanger .35s ease 6}
         <div class="stats-grid">
           <div class="stat-cell"><div class="stat-lbl">평균 입자</div><div class="stat-val" id="resSize">—</div></div>
           <div class="stat-cell"><div class="stat-lbl">균일도</div><div class="stat-val" id="resUni">—</div></div>
+          <div class="stat-cell" id="resCountCell" style="display:none"><div class="stat-lbl">입자 수</div><div class="stat-val" id="resCount">—</div></div>
+          <div class="stat-cell" id="resFinesCell" style="display:none"><div class="stat-lbl">미분 비율</div><div class="stat-val" id="resFines">—</div></div>
+        </div>
+        <!-- 입자 분포 히스토그램 -->
+        <div class="histogram" id="histogramWrap" style="display:none">
+          <div class="histogram-lbl">입자 분포</div>
+          <div class="histogram-bars" id="histogramBars"></div>
         </div>
         <div class="row" style="border-top:.5px solid var(--sep)">
           <span class="row-label" style="font-size:14px;color:var(--label2)">매커포트 적합 범위</span>
@@ -288,6 +356,8 @@ body.flash-danger{animation:flashDanger .35s ease 6}
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="resetAnalysis()">다시 분석</button>
+      <button class="btn btn-primary" id="saveGrindBtn" onclick="showSaveModal('grind')" style="display:none">기록 저장</button>
+      <button class="btn btn-secondary" id="speakBtn" onclick="speakResult()" style="display:none">🔊 음성</button>
     </div>
   </div>
 </div>
@@ -334,6 +404,7 @@ body.flash-danger{animation:flashDanger .35s ease 6}
         </div>
         <div class="stage-name" id="stageName">시작 준비</div>
         <div class="stage-desc" id="stageDesc">버튼을 눌러 추출을 시작하세요</div>
+        <div style="margin-top:8px;font-size:12px;font-weight:600;color:var(--green);letter-spacing:-0.1px">권장 추출 시간 4 ~ 5분</div>
         <div class="prog-dots">
           <div class="prog-dot" id="dot0"></div>
           <div class="prog-dot" id="dot1"></div>
@@ -343,6 +414,7 @@ body.flash-danger{animation:flashDanger .35s ease 6}
       <div class="timer-btns">
         <button class="btn btn-primary" id="startBtn" onclick="toggleTimer()" style="flex:2">시작</button>
         <button class="btn btn-secondary" onclick="resetTimer()">초기화</button>
+        <button class="btn btn-secondary" id="stopBtn" onclick="stopExtraction()" style="display:none;color:var(--red)">추출 종료</button>
       </div>
     </div>
   </div>
@@ -357,8 +429,20 @@ body.flash-danger{animation:flashDanger .35s ease 6}
   <div class="group">
     <div class="card">
       <div class="row"><span class="row-label">총 경과 시간</span><span class="row-value" id="elapsedDisplay" style="font-variant-numeric:tabular-nums">0:00</span></div>
-      <div class="row"><span class="row-label">권장 분쇄도</span><span class="row-value">고운 설탕 (300~500 μm)</span></div>
-      <div class="row"><span class="row-label">물 사용량</span><span class="row-value">뜨거운 물 170 ml</span></div>
+      <div class="row"><span class="row-label">권장 도징량</span><span class="row-value">20g ~ 23g</span></div>
+      <div class="row"><span class="row-label">물 사용량</span><span class="row-value">뜨거운 물 150 ~ 170 ml</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 기록 ═══ -->
+<div class="section" id="historySection">
+  <div class="gap"></div>
+  <div class="group">
+    <div class="group-hd" id="historyHd">추출 기록</div>
+    <div id="historyList"></div>
+    <div id="historyEmpty" style="background:var(--bg2);border-radius:12px;padding:40px 20px;text-align:center;color:var(--label2);font-size:15px;display:none">
+      아직 저장된 기록이 없습니다.<br>분석 또는 타이머 후 저장해보세요.
     </div>
   </div>
 </div>
@@ -368,25 +452,26 @@ body.flash-danger{animation:flashDanger .35s ease 6}
 <!-- Tab Bar -->
 <div class="tab-bar">
   <button class="tab-item active" id="tab-grind" onclick="switchTab('grind',null,this)">
-    <span class="tab-pip">GR</span><span class="tab-lbl">분쇄 분석</span>
+    <span class="tab-pip">GR</span><span class="tab-lbl">분쇄분석AI</span>
   </button>
   <button class="tab-item" id="tab-timer" onclick="switchTab('timer',null,this)">
     <span class="tab-pip">TM</span><span class="tab-lbl">타이머</span>
   </button>
+  <button class="tab-item" id="tab-history" onclick="switchTab('history',null,this)">
+    <span class="tab-pip">REC</span><span class="tab-lbl">기록</span>
+  </button>
 </div>
 
-<!-- API 키 모달 -->
-<div class="modal-bg" id="modal">
+<!-- 기록 저장 모달 -->
+<div class="modal-bg" id="saveModal">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title">분석 설정</div>
-    <div class="modal-desc"><strong>OpenCV 서버 URL</strong> (정밀 분석 — Render 배포 후 입력)</div>
-    <input class="modal-input" id="cvServerInput" type="url" placeholder="https://maekeo-grind-server.onrender.com" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <div class="modal-desc"><strong>OpenAI API 키</strong> (서버 없을 때 사용)</div>
-    <input class="modal-input" id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="modal-title" id="saveModalTitle">기록 저장</div>
+    <div class="modal-desc" id="saveModalDesc"></div>
+    <input class="modal-input" id="memoInput" type="text" placeholder="메모 입력 (선택)" maxlength="100">
     <div class="modal-btns">
-      <button class="btn btn-secondary" style="flex:1" onclick="closeModal()">취소</button>
-      <button class="btn btn-primary" style="flex:2" onclick="saveAndAnalyze()">저장 후 분석</button>
+      <button class="btn btn-secondary" style="flex:1" id="saveCancelBtn" onclick="closeSaveModal()">취소</button>
+      <button class="btn btn-primary" style="flex:2" id="saveSaveBtn" onclick="saveRecord()">저장</button>
     </div>
   </div>
 </div>
@@ -397,13 +482,18 @@ body.flash-danger{animation:flashDanger .35s ease 6}
 // ═══ TAB ═══
 function switchTab(tab, segBtn, tabBtn) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById(tab === 'grind' ? 'grindSection' : 'timerSection').classList.add('active');
+  const sectionMap = { grind: 'grindSection', timer: 'timerSection', history: 'historySection' };
+  document.getElementById(sectionMap[tab]).classList.add('active');
   document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
   if (segBtn) segBtn.classList.add('active');
-  else document.querySelectorAll('.seg-btn')[tab === 'grind' ? 0 : 1].classList.add('active');
+  else {
+    const idx = { grind: 0, timer: 1, history: 2 }[tab];
+    document.querySelectorAll('.seg-btn')[idx].classList.add('active');
+  }
   document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
   if (tabBtn) tabBtn.classList.add('active');
   else document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'history') renderHistory();
 }
 
 // ═══ 분석 ═══
@@ -427,13 +517,34 @@ function handleFile(e) {
 
 function startAnalysis() {
   if (!currentBase64) { toast('사진을 먼저 선택해주세요'); return; }
-  const apiKey = localStorage.getItem('maekeo_api_key');
-  if (!apiKey) { showModal(); return; }
   document.getElementById('analyzeRow').style.display = 'none';
   doAnalysis();
 }
 
+// ═══ 이미지 품질 사전 체크 ═══
+function checkImageQuality(base64) {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.src = 'data:image/jpeg;base64,' + base64;
+
+    // 이미지 크기 체크 (너무 작으면 화질 낮음)
+    if (img.naturalWidth > 0 && img.naturalWidth < 300) {
+      return currentLang === 'en'
+        ? 'Image resolution too low. Take a closer photo.'
+        : '해상도가 낮습니다. 더 가까이 촬영해주세요.';
+    }
+    return null;
+  } catch(e) { return null; }
+}
+
 async function doAnalysis() {
+  const warning = checkImageQuality(currentBase64);
+  if (warning) {
+    toast('⚠️ ' + warning);
+  }
+
   document.getElementById('resultPanel').classList.remove('show');
   document.getElementById('loadingPanel').classList.add('show');
   document.getElementById('scanOverlay').classList.add('show');
@@ -459,28 +570,34 @@ async function doAnalysis() {
   }
 }
 
+// Render OpenCV 서버 주소 (자동 우선 사용)
+const CV_SERVER = 'https://maekeo-grind-server.onrender.com';
+
 async function callAPI(base64) {
-  // 1) OpenCV 서버 시도 (정밀 분석)
-  const cvServer = localStorage.getItem('maekeo_cv_server');
-  if (cvServer) {
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 60000); // Render 콜드스타트 대비 60초
-      const r = await fetch(cvServer + '/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: ctrl.signal,
-        body: JSON.stringify({ image: base64 })
-      });
-      clearTimeout(tid);
-      if (r.ok) {
-        const d = await r.json();
-        if (d.result) return normalize(d.result);
+
+  // 1) OpenCV 서버 우선 시도 (실측값 — 정밀)
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 60000); // Render 콜드스타트 대비
+    const r = await fetch(CV_SERVER + '/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+      body: JSON.stringify({ image: base64 })
+    });
+    clearTimeout(tid);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.result) {
+        console.log('✅ OpenCV 서버 분석 완료');
+        return normalize(d.result);
       }
-    } catch(e) { console.warn('OpenCV 서버 실패:', e.message); }
+    }
+  } catch(e) {
+    console.warn('OpenCV 서버 실패, GPT-4o로 전환:', e.message);
   }
 
-  // 2) Netlify Function 시도
+  // 2) Netlify Function fallback (GPT-4o AI 추정)
   try {
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 30000);
@@ -492,76 +609,67 @@ async function callAPI(base64) {
     });
     clearTimeout(tid);
     const d = await r.json();
-    if (r.ok && d.result) return normalize(d.result);
-    if (d.error) throw new Error(d.error);
-  } catch(e) {
-    // Function 없는 환경에서만 직접 호출로 fallback
-    if (!e.message.includes('Failed to fetch') && !e.message.includes('NetworkError')) {
-      throw e; // Netlify Function 오류는 그대로 전달
+    if (r.ok && d.result) {
+      console.log('✅ GPT-4o 분석 완료 (추정값)');
+      return normalize(d.result);
     }
-  }
-
-  // 2) 직접 OpenAI 호출
-  const apiKey = localStorage.getItem('maekeo_api_key');
-  if (!apiKey) throw new Error('API 키 없음');
-
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 45000);
-
-  let r;
-  try {
-    r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      signal: ctrl.signal,
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        max_tokens: 800,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}`, detail: 'high' } },
-            { type: 'text', text: `커피 원두 분쇄도를 분석하세요. 흰색 바탕 위 분쇄 원두 사진입니다.\n커피 원두가 아니면 isCoffee:false.\n매커포트 최적: 300~500μm.\nJSON만 반환:\n{"level":"극세분/세분/중간/굵게/아주굵게","levelKor":"한글명","percent":숫자,"particleSize":숫자,"uniformity":숫자,"mokaFit":"최적/약간 고움/많이 고움/약간 굵음/많이 굵음","bestBrew":"추출방식","advice":"2문장","isCoffee":true}` }
-          ]
-        }]
-      })
-    });
+    throw new Error(d.error || `서버 오류 (${r.status})`);
   } catch(e) {
-    clearTimeout(tid);
     if (e.name === 'AbortError') throw new Error('시간 초과. 네트워크를 확인하세요.');
-    throw new Error('네트워크 오류: ' + e.message);
+    throw new Error(e.message || '분석 실패. 다시 시도해주세요.');
   }
-  clearTimeout(tid);
-
-  if (!r.ok) {
-    if (r.status === 401) throw new Error('INVALID_KEY');
-    if (r.status === 429) throw new Error('API 한도 초과. 잠시 후 다시 시도하세요.');
-    throw new Error(`API 오류 (${r.status})`);
-  }
-
-  const d = await r.json();
-  const text = d.choices?.[0]?.message?.content || '';
-  if (!text) throw new Error('응답이 비어있습니다');
-
-  let parsed;
-  try { parsed = JSON.parse(text.replace(/```json|```/g,'').trim()); }
-  catch { const m = text.match(/\{[\s\S]*\}/); if (!m) throw new Error('응답 파싱 실패'); parsed = JSON.parse(m[0]); }
-
-  return normalize(parsed);
 }
 
 function normalize(r) {
   if (r.isCoffee === false) { toast('커피 원두 사진을 촬영해주세요'); return null; }
   return {
-    percent:      Math.min(100, Math.max(0, Number(r.percent) || 50)),
-    particleSize: Number(r.particleSize) || 400,
-    uniformity:   Number(r.uniformity)   || 60,
-    levelKor:     r.levelKor || r.level  || '중간',
-    bestBrew:     r.bestBrew             || '매커포트',
-    advice:       r.advice               || '분석 완료.',
-    mokaFit:      r.mokaFit              || '—',
+    percent:        Math.min(100, Math.max(0, Number(r.percent) || 50)),
+    particleSize:   Number(r.particleSize) || 400,
+    uniformity:     Number(r.uniformity)   || 60,
+    levelKor:       r.levelKor || r.level  || '중간',
+    bestBrew:       r.bestBrew             || '매커포트',
+    advice:         r.advice               || '분석 완료.',
+    mokaFit:        r.mokaFit              || '—',
+    particleCount:  r.particleCount        || null,
+    finesRatio:     r.finesRatio           ?? null,
+    histogram:      r.histogram            || null,
+    qualityWarnings: r.qualityWarnings     || [],
+    calibrated:     r.calibrated           || false,
+    method:         r.method               || 'ai',
   };
 }
+
+// ═══ 한국어 TTS ═══
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = LANG_VOICE[currentLang] || 'ko-KR';
+  utter.rate = 0.95; utter.pitch = 1.0; utter.volume = 1.0;
+  const voices = window.speechSynthesis.getVoices();
+  const langCode = LANG_VOICE[currentLang];
+  const voice = voices.find(v => v.lang.startsWith(langCode.split('-')[0]));
+  if (voice) utter.voice = voice;
+  window.speechSynthesis.speak(utter);
+}
+
+// 음성 목록 미리 로드 (iOS 필요)
+if (window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+
+// iOS PWA 음성 언락 — 첫 터치 시 무음 재생으로 활성화
+let speechUnlocked = false;
+function unlockSpeech() {
+  if (speechUnlocked || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance('');
+  u.volume = 0;
+  window.speechSynthesis.speak(u);
+  speechUnlocked = true;
+}
+document.addEventListener('touchstart', unlockSpeech, { once: true });
+document.addEventListener('click', unlockSpeech, { once: true });
 
 function showResult(r) {
   document.getElementById('resultPanel').classList.add('show');
@@ -571,6 +679,39 @@ function showResult(r) {
   document.getElementById('resAdvice').textContent = r.advice;
   document.getElementById('resSize').innerHTML     = `${r.particleSize}<span class="stat-unit"> μm</span>`;
   document.getElementById('resUni').innerHTML      = `${r.uniformity}<span class="stat-unit"> %</span>`;
+
+  // 입자 수 (OpenCV 서버 결과일 때만)
+  if (r.particleCount) {
+    document.getElementById('resCountCell').style.display = 'block';
+    document.getElementById('resCount').innerHTML = `${r.particleCount}<span class="stat-unit"> 개</span>`;
+  }
+
+  // 미분 비율 (OpenCV 서버 결과일 때만)
+  if (r.finesRatio !== undefined) {
+    document.getElementById('resFinesCell').style.display = 'block';
+    document.getElementById('resFines').innerHTML = `${r.finesRatio}<span class="stat-unit"> %</span>`;
+  }
+
+  // 입자 분포 히스토그램
+  if (r.histogram && r.histogram.length > 0) {
+    const wrap = document.getElementById('histogramWrap');
+    const bars = document.getElementById('histogramBars');
+    wrap.style.display = 'block';
+    const maxCount = Math.max(...r.histogram.map(h => h.count), 1);
+    const optimalRanges = ['300-400', '400-500'];
+    const dangerRanges  = ['<200'];
+    bars.innerHTML = r.histogram.map(h => {
+      const heightPct = Math.round((h.count / maxCount) * 100);
+      const cls = h.count === 0 ? 'empty'
+        : optimalRanges.includes(h.range) ? 'optimal'
+        : dangerRanges.includes(h.range)  ? 'danger'
+        : 'warn';
+      return `<div class="histogram-bar-wrap">
+        <div class="histogram-bar ${cls}" style="height:${Math.max(heightPct, 2)}%"></div>
+        <div class="histogram-range">${h.range}</div>
+      </div>`;
+    }).join('');
+  }
 
   const fitEl = document.getElementById('resMokaFit');
   fitEl.textContent = r.mokaFit;
@@ -582,6 +723,54 @@ function showResult(r) {
   const confEl = document.getElementById('resBadge');
   confEl.textContent = conf === 'high' ? '높음' : conf === 'mid' ? '보통' : '낮음';
   confEl.className = `badge badge-${conf}`;
+
+  // 신뢰도 이유 안내
+  const reasonEl = document.getElementById('confReason');
+  if (conf === 'high') {
+    reasonEl.style.display = 'none';
+  } else {
+    reasonEl.style.display = 'block';
+    reasonEl.textContent = conf === 'mid'
+      ? '💡 정확도를 높이려면: 흰 종이 위에 원두를 더 넓게 펼치고, 자연광에서 최대한 가까이 촬영해주세요.'
+      : '⚠️ 신뢰도가 낮습니다. 흰 배경 사용, 균일하게 펼치기, 그림자 없는 밝은 환경에서 다시 촬영하면 정확도가 높아집니다.';
+  }
+
+  // 음성 듣기 + 기록 저장 버튼 표시
+  document.getElementById('speakBtn').style.display = 'flex';
+  document.getElementById('saveGrindBtn').style.display = 'flex';
+
+  // 결과 저장용
+  window._lastGrindResult = r;
+
+  // 분석 방식 표시
+  const methodEl = document.getElementById('resMethod');
+  if (r.method === 'coin_calibrated') {
+    methodEl.textContent = currentLang === 'en' ? '🔵 OpenCV · Coin calibrated' : '🔵 OpenCV 실측 · 동전 기준';
+    methodEl.style.color = 'var(--blue)';
+  } else if (r.method === 'estimated') {
+    methodEl.textContent = currentLang === 'en' ? '🟠 OpenCV · Estimated' : '🟠 OpenCV 실측 · 추정';
+    methodEl.style.color = 'var(--orange)';
+  } else {
+    methodEl.textContent = currentLang === 'en' ? '⚪ GPT-4o · AI estimate' : '⚪ GPT-4o · AI 추정';
+    methodEl.style.color = 'var(--label3)';
+  }
+  if (r.qualityWarnings && r.qualityWarnings.length > 0) {
+    r.qualityWarnings.forEach(w => toast('⚠️ ' + w));
+  }
+  const completeMsg = currentLang === 'en' ? 'Analysis complete.' : '분석이 완료되었습니다.';
+  setTimeout(() => speak(completeMsg), 600);
+}
+
+function speakResult() {
+  if (window._lastGrindResult) {
+    const r = window._lastGrindResult;
+    const mokaMsg = r.mokaFit === '최적' || r.mokaFit === 'Perfect' || r.mokaFit === '最適'
+      ? t('voiceOptimal')
+      : r.mokaFit.includes('고움') || r.mokaFit.includes('fine') || r.mokaFit.includes('細')
+      ? t('voiceFine')
+      : t('voiceCoarse');
+    speak(t('voiceResult', r.levelKor) + ' ' + mokaMsg);
+  }
 }
 
 function resetAnalysis() {
@@ -593,6 +782,10 @@ function resetAnalysis() {
   document.getElementById('scanOverlay').classList.remove('show');
   document.getElementById('analyzeRow').style.display = 'none';
   document.getElementById('meterFill').style.width = '0%';
+  document.getElementById('resCountCell').style.display = 'none';
+  document.getElementById('resFinesCell').style.display = 'none';
+  document.getElementById('histogramWrap').style.display = 'none';
+  document.getElementById('histogramBars').innerHTML = '';
   document.getElementById('camFileInput').value = '';
   document.getElementById('fileInput').value = '';
 }
@@ -637,7 +830,7 @@ function saveAndAnalyze() {
 }
 
 // ═══ TIMER ═══
-const RING_C = 534, WARN_AT = 180, DANGER_AT = 360;
+const RING_C = 534, WARN_AT = 180, DANGER_AT = 360, STOP_AT = 420;
 let startedAt = null, accElapsed = 0, timerRAF = null, timerInterval = null;
 let isRunning = false, warnFired = false, dangerFired = false;
 
@@ -650,65 +843,91 @@ function initTimer() { renderStages(); updateTimerUI(); }
 
 function renderStages() {
   document.getElementById('stageList').innerHTML = `
-    <div class="tl-row upcoming" id="sRow0"><div class="tl-dot" id="tDot0"></div><div class="tl-info"><div class="tl-name">중불 가열</div><div class="tl-time">0:00 — 3:00 · 압력 생성 대기</div></div><div class="tl-badge" id="sBadge0">대기</div></div>
-    <div class="tl-row upcoming" id="sRow1"><div class="tl-dot" id="tDot1"></div><div class="tl-info"><div class="tl-name">불 줄이기</div><div class="tl-time">3:00 알람 · 압력 안정화</div></div><div class="tl-badge" id="sBadge1">대기</div></div>
-    <div class="tl-row upcoming" id="sRow2"><div class="tl-dot" id="tDot2"></div><div class="tl-info"><div class="tl-name">추출 시간 초과</div><div class="tl-time">6:00 알람 · 과추출 주의</div></div><div class="tl-badge" id="sBadge2">대기</div></div>
-    <div class="tl-row upcoming" id="sRow3"><div class="tl-dot" id="tDot3"></div><div class="tl-info"><div class="tl-name">불 끄기</div><div class="tl-time">추출이 시작될 때 즉시</div></div><div class="tl-badge" id="sBadge3">대기</div></div>
+    <div class="tl-row upcoming" id="sRow0"><div class="tl-dot" id="tDot0"></div><div class="tl-info"><div class="tl-name">${t('tl0name')}</div><div class="tl-time">${t('tl0time')}</div></div><div class="tl-badge" id="sBadge0">${t('timerStart')}</div></div>
+    <div class="tl-row upcoming" id="sRow1"><div class="tl-dot" id="tDot1"></div><div class="tl-info"><div class="tl-name">${t('tl1name')}</div><div class="tl-time">${t('tl1time')}</div></div><div class="tl-badge" id="sBadge1">${t('timerStart')}</div></div>
+    <div class="tl-row upcoming" id="sRow2"><div class="tl-dot" id="tDot2"></div><div class="tl-info"><div class="tl-name">${t('tl2name')}</div><div class="tl-time">${t('tl2time')}</div></div><div class="tl-badge" id="sBadge2">${t('timerStart')}</div></div>
+    <div class="tl-row upcoming" id="sRow3"><div class="tl-dot" id="tDot3"></div><div class="tl-info"><div class="tl-name">${t('tl3name')}</div><div class="tl-time">${t('tl3time')}</div></div><div class="tl-badge" id="sBadge3">${t('timerStart')}</div></div>
   `;
 }
 
 function fmt(s) { return `${Math.floor(Math.abs(s)/60)}:${String(Math.abs(s)%60).padStart(2,'0')}`; }
 
 function updateTimerUI() {
-  const t = getElapsed();
+  const elapsed = getElapsed();
   let nm, dc;
-  if      (t===0)        { nm='시작 준비';   dc='버튼을 눌러 추출을 시작하세요'; }
-  else if (t<WARN_AT)    { nm='중불 가열 중'; dc=`압력 생성 대기 — 3분 알람까지 ${fmt(WARN_AT-t)} 남음`; }
-  else if (t<DANGER_AT)  { nm='압력 안정화';  dc=`불 줄이기 — 7bar 유지 중 · ${fmt(t)} 경과`; }
-  else                   { nm='과추출 주의';  dc=`${fmt(t)} 경과 — 다음엔 초반 불을 더 강하게`; }
+  if      (elapsed===0)       { nm=t('timerStageName0'); dc=t('timerStageDesc0'); }
+  else if (elapsed<WARN_AT)   { nm=t('tl0name'); dc=`${t('tl0time')} — ${fmt(WARN_AT-elapsed)}`; }
+  else if (elapsed<DANGER_AT) { nm=t('tl1name'); dc=`${fmt(elapsed)} ${t('elapsedLbl')}`; }
+  else                        { nm=t('tl2name'); dc=`${fmt(elapsed)} ${t('elapsedLbl')}`; }
   document.getElementById('stageName').textContent = nm;
   document.getElementById('stageDesc').textContent = dc;
-  document.getElementById('timerDisplay').textContent   = fmt(t);
-  document.getElementById('timerSub').textContent       = t < DANGER_AT ? `/ ${fmt(DANGER_AT)}` : '초과';
-  document.getElementById('elapsedDisplay').textContent = fmt(t);
+  document.getElementById('timerDisplay').textContent   = fmt(elapsed);
+  document.getElementById('timerSub').textContent       = elapsed < STOP_AT ? `/ ${fmt(STOP_AT)}` : (currentLang==='en'?'Stopped':'종료');
+  document.getElementById('elapsedDisplay').textContent = fmt(elapsed);
 
   const rf = document.getElementById('ringFill');
-  rf.style.strokeDashoffset = RING_C - RING_C * Math.min(t/DANGER_AT, 1);
-  rf.style.stroke = t>=DANGER_AT ? '#FF3B30' : t>=WARN_AT ? '#FF9500' : 'url(#rg)';
+  rf.style.strokeDashoffset = RING_C - RING_C * Math.min(elapsed/STOP_AT, 1);
+  rf.style.stroke = elapsed>=DANGER_AT ? '#FF3B30' : elapsed>=WARN_AT ? '#FF9500' : 'url(#rg)';
 
   const sd = (i,c) => { const d=document.getElementById('dot'+i); if(d) d.className='prog-dot '+c; };
-  if      (t===0)       { sd(0,'');      sd(1,'');      sd(2,''); }
-  else if (t<WARN_AT)   { sd(0,'active');sd(1,'');      sd(2,''); }
-  else if (t<DANGER_AT) { sd(0,'done'); sd(1,'active'); sd(2,''); }
-  else                  { sd(0,'done'); sd(1,'done');   sd(2,'active'); }
+  if      (elapsed===0)       { sd(0,'');      sd(1,'');      sd(2,''); }
+  else if (elapsed<WARN_AT)   { sd(0,'active');sd(1,'');      sd(2,''); }
+  else if (elapsed<DANGER_AT) { sd(0,'done');  sd(1,'active');sd(2,''); }
+  else                        { sd(0,'done');  sd(1,'done');  sd(2,'active'); }
 
   const upd = (i,s) => {
     const row=document.getElementById('sRow'+i),dot=document.getElementById('tDot'+i),b=document.getElementById('sBadge'+i);
     if(!row) return;
     row.className='tl-row '+s;
     dot.className='tl-dot '+(s==='current'?'current':s==='done'?'done':'');
-    b.textContent=s==='done'?'완료':s==='current'?'진행 중':'대기';
+    b.textContent = s==='done' ? t('confHigh') : s==='current' ? t('timerPause') : t('timerStart');
     b.className='tl-badge '+(s==='done'?'done':s==='current'?'current':'');
   };
-  if      (t===0)       { upd(0,'upcoming');upd(1,'upcoming');upd(2,'upcoming');upd(3,'upcoming'); }
-  else if (t<WARN_AT)   { upd(0,'current'); upd(1,'upcoming');upd(2,'upcoming');upd(3,'upcoming'); }
-  else if (t<DANGER_AT) { upd(0,'done');    upd(1,'current'); upd(2,'upcoming');upd(3,'upcoming'); }
-  else                  { upd(0,'done');    upd(1,'done');    upd(2,'current'); upd(3,'upcoming'); }
+  if      (elapsed===0)       { upd(0,'upcoming');upd(1,'upcoming');upd(2,'upcoming');upd(3,'upcoming'); }
+  else if (elapsed<WARN_AT)   { upd(0,'current'); upd(1,'upcoming');upd(2,'upcoming');upd(3,'upcoming'); }
+  else if (elapsed<DANGER_AT) { upd(0,'done');    upd(1,'current'); upd(2,'upcoming');upd(3,'upcoming'); }
+  else                        { upd(0,'done');    upd(1,'done');    upd(2,'current'); upd(3,'upcoming'); }
 }
 
 function rafLoop() { updateTimerUI(); timerRAF = requestAnimationFrame(rafLoop); }
 
+let min1Fired = false, min2Fired = false, min4Fired = false, min5Fired = false;
+
 function checkAlarms() {
-  const t = getElapsed();
-  if (t >= WARN_AT && !warnFired) {
+  const elapsed = getElapsed();
+
+  if (elapsed >= 60 && !min1Fired) {
+    min1Fired = true; speak(t('voice1min'));
+  }
+  if (elapsed >= 120 && !min2Fired) {
+    min2Fired = true; speak(t('voice2min'));
+  }
+  if (elapsed >= WARN_AT && !warnFired) {
     warnFired = true; playBeep('warn'); flash('warn');
     document.getElementById('alertWarn').classList.add('show');
-    toast('3분 경과 — 불을 줄이세요');
+    toast(t('warnTitle')); speak(t('voice3min'));
   }
-  if (t >= DANGER_AT && !dangerFired) {
+  if (elapsed >= 240 && !min4Fired) {
+    min4Fired = true; speak(t('voice4min'));
+  }
+  if (elapsed >= 300 && !min5Fired) {
+    min5Fired = true; speak(t('voice5min'));
+  }
+  if (elapsed >= DANGER_AT && !dangerFired) {
     dangerFired = true; playBeep('danger'); flash('danger');
     document.getElementById('alertDanger').classList.add('show');
-    toast('6분 초과 — 과추출 주의');
+    toast(t('dangerTitle')); speak(t('voice6min'));
+  }
+  if (elapsed >= STOP_AT) {
+    cancelAnimationFrame(timerRAF); timerRAF = null;
+    clearInterval(timerInterval); timerInterval = null;
+    isRunning = false;
+    document.getElementById('startBtn').textContent = t('timerStart');
+    document.getElementById('stopBtn').style.display = 'none';
+    playBeep('danger');
+    speak(t('voice7min'));
+    updateTimerUI();
+    setTimeout(() => showSaveModal('timer'), 1500);
   }
 }
 
@@ -769,6 +988,11 @@ function flash(type) {
 
 function toggleTimer() {
   ensureAudio();
+  if (window.speechSynthesis) {
+    const u = new SpeechSynthesisUtterance('');
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+  }
   if (isRunning) {
     accElapsed += Date.now() - startedAt;
     isRunning = false;
@@ -779,18 +1003,38 @@ function toggleTimer() {
     const first = accElapsed === 0;
     startedAt = Date.now(); isRunning = true;
     document.getElementById('startBtn').textContent = '일시정지';
-    if (first) { playStartSound(); toast('추출 시작'); }
+    if (first) { playStartSound(); toast(t('voiceStart')); }
     timerRAF = requestAnimationFrame(rafLoop);
     timerInterval = setInterval(checkAlarms, 500);
   }
+  // 추출 종료 버튼 — 타이머 시작되면 표시
+  document.getElementById('stopBtn').style.display = accElapsed > 0 || isRunning ? 'flex' : 'none';
   updateTimerUI();
+}
+
+function stopExtraction() {
+  // 타이머 정지
+  if (isRunning) {
+    accElapsed += Date.now() - startedAt;
+    isRunning = false;
+    cancelAnimationFrame(timerRAF); timerRAF = null;
+    clearInterval(timerInterval); timerInterval = null;
+  }
+  document.getElementById('startBtn').textContent = '시작';
+  document.getElementById('stopBtn').style.display = 'none';
+  updateTimerUI();
+  // 기록 저장 팝업
+  setTimeout(() => showSaveModal('timer'), 400);
 }
 
 function resetTimer() {
   cancelAnimationFrame(timerRAF); timerRAF = null;
   clearInterval(timerInterval); timerInterval = null;
-  isRunning=false; startedAt=null; accElapsed=0; warnFired=false; dangerFired=false;
+  isRunning=false; startedAt=null; accElapsed=0;
+  warnFired=false; dangerFired=false;
+  min1Fired=false; min2Fired=false; min4Fired=false; min5Fired=false;
   document.getElementById('startBtn').textContent = '시작';
+  document.getElementById('stopBtn').style.display = 'none';
   document.getElementById('alertWarn').classList.remove('show');
   document.getElementById('alertDanger').classList.remove('show');
   document.getElementById('ringFill').style.stroke = 'url(#rg)';
@@ -804,7 +1048,467 @@ function toast(msg) {
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
+// ═══ 기록 저장 ═══
+let _saveType = 'grind';
+
+function showSaveModal(type) {
+  _saveType = type;
+
+  // 다국어 적용
+  document.getElementById('saveModalTitle').textContent = t('saveTitle');
+  document.getElementById('memoInput').placeholder = t('saveMemo');
+  document.getElementById('saveCancelBtn').textContent = t('saveCancel');
+  document.getElementById('saveSaveBtn').textContent = t('saveSave');
+
+  const desc = document.getElementById('saveModalDesc');
+  if (type === 'grind' && window._lastGrindResult) {
+    const r = window._lastGrindResult;
+    desc.innerHTML = `<b>${r.levelKor}</b> · ${r.particleSize}μm · ${r.mokaFit}`;
+  } else if (type === 'timer') {
+    const elapsed = getElapsed();
+    desc.innerHTML = `${t('elapsedLbl')}: <b>${fmt(elapsed)}</b>`;
+  }
+
+  document.getElementById('memoInput').value = '';
+  document.getElementById('saveModal').classList.add('show');
+  setTimeout(() => document.getElementById('memoInput').focus(), 350);
+}
+
+function closeSaveModal() {
+  document.getElementById('saveModal').classList.remove('show');
+}
+
+function saveRecord() {
+  const memo = document.getElementById('memoInput').value.trim();
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const record = { id: Date.now(), date: dateStr, memo, type: _saveType };
+
+  if (_saveType === 'grind' && window._lastGrindResult) {
+    const r = window._lastGrindResult;
+    record.levelKor    = r.levelKor;
+    record.particleSize = r.particleSize;
+    record.uniformity  = r.uniformity;
+    record.mokaFit     = r.mokaFit;
+    record.advice      = r.advice;
+  } else if (_saveType === 'timer') {
+    record.extractTime = fmt(getElapsed());
+  }
+
+  const records = JSON.parse(localStorage.getItem('maekeo_records') || '[]');
+  records.unshift(record);
+  if (records.length > 50) records.pop(); // 최대 50개
+  localStorage.setItem('maekeo_records', JSON.stringify(records));
+
+  closeSaveModal();
+  toast(t('savedToast'));
+}
+
+function deleteRecord(id) {
+  const records = JSON.parse(localStorage.getItem('maekeo_records') || '[]');
+  const filtered = records.filter(r => r.id !== id);
+  localStorage.setItem('maekeo_records', JSON.stringify(filtered));
+  renderHistory();
+}
+
+function renderHistory() {
+  const records = JSON.parse(localStorage.getItem('maekeo_records') || '[]');
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
+
+  if (records.length === 0) {
+    list.innerHTML = '';
+    empty.innerHTML = t('historyEmpty').replace('\n','<br>');
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = records.map(r => `
+    <div style="background:var(--bg2);border-radius:12px;margin-bottom:10px;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:.5px solid var(--sep);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;color:var(--label2)">${r.date}</span>
+        <button onclick="deleteRecord(${r.id})" style="border:none;background:none;color:var(--red);font-size:13px;cursor:pointer;padding:0">${t('deleteBtn')}</button>
+      </div>
+      ${r.type === 'grind' ? `
+        <div style="padding:10px 16px;border-bottom:.5px solid var(--sep);display:flex;justify-content:space-between">
+          <span style="font-size:15px;font-weight:500;color:var(--label)">${r.levelKor} · ${r.particleSize}μm</span>
+          <span style="font-size:14px;color:${r.mokaFit==='최적'||r.mokaFit==='Perfect'?'var(--green)':r.mokaFit.includes('약간')||r.mokaFit.includes('slightly')?'var(--orange)':'var(--red)'}">${r.mokaFit}</span>
+        </div>
+        <div style="padding:10px 16px;border-bottom:.5px solid var(--sep);display:flex;justify-content:space-between">
+          <span style="font-size:13px;color:var(--label2)">${t('uniHd')}</span>
+          <span style="font-size:13px;color:var(--label)">${r.uniformity}%</span>
+        </div>
+      ` : `
+        <div style="padding:10px 16px;border-bottom:.5px solid var(--sep);display:flex;justify-content:space-between">
+          <span style="font-size:15px;font-weight:500;color:var(--label)">${t('elapsedLbl')}</span>
+          <span style="font-size:15px;color:var(--blue)">${r.extractTime}</span>
+        </div>
+      `}
+      ${r.memo ? `<div style="padding:10px 16px;font-size:13px;color:var(--label2)">📝 ${r.memo}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// ═══ PWA 설치 안내 ═══
+let _deferredPrompt = null; // Android 설치 프롬프트 저장
+
+// Android: 설치 프롬프트 이벤트 캡처
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _deferredPrompt = e;
+  // 이미 설치됐거나 오늘 닫은 경우 스킵
+  if (!isInstalled() && !isDismissedToday()) {
+    showInstallPromptAndroid();
+  }
+});
+
+// iOS: Safari + 홈화면 미등록 상태 감지
+function checkIOSInstall() {
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isInStandalone = window.navigator.standalone === true;
+  if (isIOS && !isInStandalone && !isDismissedToday()) {
+    setTimeout(() => showInstallPromptIOS(), 2000);
+  }
+}
+
+function isInstalled() {
+  return window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+}
+
+function isDismissedToday() {
+  const d = localStorage.getItem('install_dismissed');
+  if (!d) return false;
+  return Date.now() - Number(d) < 86400000; // 24시간
+}
+
+function showInstallPromptIOS() {
+  document.getElementById('installSteps').innerHTML = `
+    <div class="install-step"><div class="install-step-num">1</div><div>하단 가운데 <b>공유 버튼</b> (□↑) 탭</div></div>
+    <div class="install-step"><div class="install-step-num">2</div><div>스크롤해서 <b>"홈 화면에 추가"</b> 탭</div></div>
+    <div class="install-step"><div class="install-step-num">3</div><div>오른쪽 상단 <b>"추가"</b> 탭</div></div>
+  `;
+  document.getElementById('installOverlay').classList.add('show');
+}
+
+function showInstallPromptAndroid() {
+  document.getElementById('installSteps').innerHTML = `
+    <div class="install-step"><div class="install-step-num">1</div><div>아래 <b>"홈 화면에 추가"</b> 버튼을 탭하세요</div></div>
+    <div class="install-step"><div class="install-step-num">2</div><div><b>"설치"</b> 버튼을 탭하면 완료!</div></div>
+  `;
+  // Android는 버튼을 설치 버튼으로 교체
+  const btn = document.querySelector('#installOverlay .btn-primary');
+  btn.textContent = '홈 화면에 추가';
+  btn.onclick = async () => {
+    if (_deferredPrompt) {
+      _deferredPrompt.prompt();
+      const { outcome } = await _deferredPrompt.userChoice;
+      _deferredPrompt = null;
+    }
+    dismissInstall();
+  };
+  document.getElementById('installOverlay').classList.add('show');
+}
+
+function dismissInstall() {
+  localStorage.setItem('install_dismissed', Date.now());
+  document.getElementById('installOverlay').classList.remove('show');
+}
+
+// 이미 설치된 경우 안내 안 함
+if (!isInstalled()) checkIOSInstall();
+
+// ═══ SERVICE WORKER & 업데이트 ═══
+let _newWorker = null;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+
+    // 새 버전 대기 중인 경우
+    if (reg.waiting) showUpdateBanner(reg.waiting);
+
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          showUpdateBanner(newWorker);
+        }
+      });
+    });
+  });
+
+  // Service Worker 메시지 수신
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
+function showUpdateBanner(worker) {
+  _newWorker = worker;
+  document.getElementById('updateBanner').classList.add('show');
+}
+
+function dismissUpdate() {
+  document.getElementById('updateBanner').classList.remove('show');
+}
+
+function applyUpdate() {
+  if (_newWorker) {
+    _newWorker.postMessage({ action: 'skipWaiting' });
+  } else {
+    window.location.reload();
+  }
+}
+
+// ═══ 다국어 (한국어 / English) ═══
+const LANGS = ['ko', 'en'];
+const LANG_LABELS = { ko: '한', en: 'EN' };
+const LANG_VOICE = { ko: 'ko-KR', en: 'en-US' };
+
+const I18N = {
+  ko: {
+    seg0: '분쇄분석AI', seg1: '타이머', seg2: '기록',
+    navShop: '소모품', navProduct: '매커포트',
+    camTitle: '원두 사진 촬영 안내',
+    camSub: '흰색 바탕 위에 분쇄된 원두를 넓게 펼쳐 촬영하세요\n100원 동전을 함께 놓으면 더 정확합니다',
+    camTip: '렌즈를 최대한 가깝게 대고\n터치해 초점을 맞춘 후 촬영하세요',
+    btnCamera: '카메라로 촬영', btnGallery: '갤러리에서 선택',
+    btnAnalyze: '분석 시작', btnReset: '다시 분석',
+    btnSpeak: '🔊 음성', btnSaveGrind: '기록 저장',
+    scanLbl: '분석 중',
+    grindHd: '분쇄 굵기', measureHd: '측정값', aiHd: 'AI 추천',
+    levelLbl: '분쇄 레벨', mokaLbl: '매커포트 적합도',
+    brewLbl: '적합 추출', confLbl: '분석 신뢰도',
+    sizeHd: '평균 입자', uniHd: '균일도',
+    rangeNote: '매커포트 적합 범위', rangeVal: '300 — 500 μm',
+    measureNote: '측정값은 AI 시각 추정치입니다. 방향 판단 참고용으로 활용하세요.',
+    adviceCap: '바리스타 조언',
+    confHigh: '높음', confMid: '보통', confLow: '낮음',
+    confMidReason: '💡 정확도를 높이려면: 흰 종이 위에 원두를 더 넓게 펼치고, 자연광에서 최대한 가까이 촬영해주세요.',
+    confLowReason: '⚠️ 신뢰도가 낮습니다. 흰 배경 사용, 균일하게 펼치기, 그림자 없는 밝은 환경에서 다시 촬영하면 정확도가 높아집니다.',
+    timerStart: '시작', timerPause: '일시정지', timerResume: '계속',
+    timerReset: '초기화', timerStop: '추출 종료',
+    timerStageName0: '시작 준비', timerStageDesc0: '버튼을 눌러 추출을 시작하세요',
+    timerRecommend: '권장 추출 시간 4 ~ 5분',
+    screenWarn: '화면을 끄지 마세요.',
+    screenWarnSub: '화면이 꺼지면 알람이 울리지 않을 수 있습니다.',
+    warnTitle: '불을 줄이세요 — 압력 안정화',
+    warnBody: '3분 경과. 중약불로 낮춰 7bar 압력을 안정적으로 유지하세요.',
+    dangerTitle: '추출 시간 초과 — 과추출 주의',
+    dangerBody: '6분을 넘었습니다. 고압 추출이 길어지면 크레마가 무너지고 쓴맛이 강해집니다.',
+    elapsedLbl: '총 경과 시간', dosingLbl: '권장 도징량', dosingVal: '20g ~ 23g',
+    waterLbl: '물 사용량', waterVal: '뜨거운 물 150 ~ 170 ml',
+    tl0name: '중불 가열', tl0time: '0:00 — 3:00 · 압력 생성 대기',
+    tl1name: '불 줄이기', tl1time: '3:00 알람 · 압력 안정화',
+    tl2name: '추출 시간 초과', tl2time: '6:00 알람 · 과추출 주의',
+    tl3name: '불 끄기', tl3time: '추출이 시작될 때 즉시',
+    historyHd: '추출 기록',
+    historyEmpty: '아직 저장된 기록이 없습니다.\n분석 또는 타이머 후 저장해보세요.',
+    saveTitle: '기록 저장', saveMemo: '메모 입력 (선택)',
+    saveCancel: '취소', saveSave: '저장',
+    savedToast: '기록이 저장되었습니다',
+    deleteBtn: '삭제',
+    updateNew: '새 버전이 있습니다 🎉',
+    updateLater: '나중에', updateNow: '업데이트',
+    installTitle: '앱으로 설치하기 📲',
+    installDesc: '홈 화면에 추가하면 앱처럼 빠르게 실행할 수 있습니다.',
+    installDismiss: '오늘 하루 안 보기', installOk: '확인',
+    // 음성
+    voice1min: '1분이 지났습니다.',
+    voice2min: '2분이 지났습니다.',
+    voice3min: '3분 경과. 불을 중약불로 줄이세요. 압력을 안정화하세요.',
+    voice4min: '4분. 가장 이상적인 추출 시간대입니다.',
+    voice5min: '5분. 적정 추출 시간대입니다.',
+    voice6min: '6분을 초과했습니다. 추출 시간이 너무 길어졌습니다. 과추출 주의하세요.',
+    voice7min: '7분이 경과했습니다. 타이머를 종료합니다.',
+    voiceStart: '추출 시작',
+    voiceOptimal: '매커포트에 최적입니다.',
+    voiceFine: '분쇄도가 조금 곱습니다. 그라인더를 굵게 조정하세요.',
+    voiceCoarse: '분쇄도가 조금 굵습니다. 그라인더를 곱게 조정하세요.',
+    voiceResult: (lv) => `분석 완료. 분쇄 레벨은 ${lv}입니다.`,
+  },
+  en: {
+    seg0: 'Grind AI', seg1: 'Timer', seg2: 'History',
+    navShop: 'Supplies', navProduct: 'Maekerpot',
+    camTitle: 'Photo Guide',
+    camSub: 'Place ground coffee on white paper and take a photo.\nAdding a coin improves accuracy.',
+    camTip: 'Get as close as possible\nand tap to focus before shooting.',
+    btnCamera: 'Camera', btnGallery: 'Gallery',
+    btnAnalyze: 'Analyze', btnReset: 'Re-Analyze',
+    btnSpeak: '🔊 Voice', btnSaveGrind: 'Save',
+    scanLbl: 'Analyzing...',
+    grindHd: 'Grind Size', measureHd: 'Measurements', aiHd: 'AI Advice',
+    levelLbl: 'Grind Level', mokaLbl: 'Maekerpot Fit',
+    brewLbl: 'Best Brew', confLbl: 'Confidence',
+    sizeHd: 'Avg Particle', uniHd: 'Uniformity',
+    rangeNote: 'Maekerpot Range', rangeVal: '300 — 500 μm',
+    measureNote: 'Values are AI visual estimates. Use as a reference guide.',
+    adviceCap: 'Barista Advice',
+    confHigh: 'High', confMid: 'Medium', confLow: 'Low',
+    confMidReason: '💡 For better accuracy: spread grounds wider on white paper and shoot in natural light, up close.',
+    confLowReason: '⚠️ Low confidence. Try again with white background, spread evenly, in bright lighting without shadows.',
+    timerStart: 'Start', timerPause: 'Pause', timerResume: 'Resume',
+    timerReset: 'Reset', timerStop: 'Stop Brew',
+    timerStageName0: 'Ready', timerStageDesc0: 'Press start to begin extraction',
+    timerRecommend: 'Recommended: 4 ~ 5 min',
+    screenWarn: 'Keep screen on.',
+    screenWarnSub: 'Alarms may not sound if the screen turns off.',
+    warnTitle: 'Reduce Heat — Stabilize Pressure',
+    warnBody: '3 min passed. Lower to medium-low heat to maintain 7bar pressure.',
+    dangerTitle: 'Over-Extraction Warning',
+    dangerBody: 'Exceeded 6 minutes. Long extraction destroys crema and causes bitterness.',
+    elapsedLbl: 'Elapsed Time', dosingLbl: 'Recommended Dose', dosingVal: '20g ~ 23g',
+    waterLbl: 'Water Amount', waterVal: 'Hot water 150 ~ 170 ml',
+    tl0name: 'Medium Heat', tl0time: '0:00 — 3:00 · Building pressure',
+    tl1name: 'Reduce Heat', tl1time: '3:00 alarm · Stabilize pressure',
+    tl2name: 'Overtime', tl2time: '6:00 alarm · Over-extraction risk',
+    tl3name: 'Turn Off', tl3time: 'Turn off when brew starts',
+    historyHd: 'Brew History',
+    historyEmpty: 'No records yet.\nSave after analysis or timer.',
+    saveTitle: 'Save Record', saveMemo: 'Add memo (optional)',
+    saveCancel: 'Cancel', saveSave: 'Save',
+    savedToast: 'Record saved',
+    deleteBtn: 'Delete',
+    updateNew: 'New version available 🎉',
+    updateLater: 'Later', updateNow: 'Update',
+    installTitle: 'Install App 📲',
+    installDesc: 'Add to home screen to launch like a native app.',
+    installDismiss: 'Not today', installOk: 'OK',
+    voice1min: '1 minute passed.',
+    voice2min: '2 minutes passed.',
+    voice3min: '3 minutes. Reduce to medium-low heat and stabilize pressure.',
+    voice4min: '4 minutes. This is the ideal extraction window.',
+    voice5min: '5 minutes. Good extraction time.',
+    voice6min: 'Over 6 minutes. Risk of over-extraction. Watch your brew.',
+    voice7min: '7 minutes reached. Timer stopped.',
+    voiceStart: 'Extraction started.',
+    voiceOptimal: 'Perfect grind for Maekerpot.',
+    voiceFine: 'Grind is slightly too fine. Adjust coarser.',
+    voiceCoarse: 'Grind is slightly too coarse. Adjust finer.',
+    voiceResult: (lv) => `Analysis complete. Grind level: ${lv}.`,
+  }
+};
+
+let currentLang = localStorage.getItem('maekeo_lang') || 'ko';
+
+function t(key, ...args) {
+  const val = I18N[currentLang][key];
+  if (typeof val === 'function') return val(...args);
+  return val || I18N['ko'][key] || key;
+}
+
+function cycleLang() {
+  const idx = LANGS.indexOf(currentLang);
+  currentLang = LANGS[(idx + 1) % LANGS.length];
+  localStorage.setItem('maekeo_lang', currentLang);
+  applyLang();
+}
+
+function applyLang() {
+  const l = currentLang;
+  document.getElementById('langBtn').textContent = LANG_LABELS[l];
+
+  // Nav
+  document.getElementById('seg0').textContent = t('seg0');
+  document.getElementById('seg1').textContent = t('seg1');
+  document.getElementById('seg2').textContent = t('seg2');
+  document.getElementById('navShop').textContent = t('navShop');
+  document.getElementById('navProduct').textContent = t('navProduct');
+
+  // Tab bar
+  document.querySelectorAll('.tab-lbl')[0].textContent = t('seg0');
+  document.querySelectorAll('.tab-lbl')[1].textContent = t('seg1');
+  document.querySelectorAll('.tab-lbl')[2].textContent = t('seg2');
+
+  // Grind section
+  document.querySelector('.cam-ph-title').textContent = t('camTitle');
+  document.querySelector('.cam-ph-sub').innerHTML = t('camSub').replace('\n','<br>');
+  document.querySelector('.cam-ph-tip').innerHTML = t('camTip').replace('\n','<br>');
+  document.querySelector('.scan-lbl').textContent = t('scanLbl');
+
+  // Buttons
+  document.querySelectorAll('.btn-primary.btn-sm')[0].textContent = t('btnCamera');
+  document.querySelectorAll('.btn-secondary.btn-sm')[0].textContent = t('btnGallery');
+  const analyzeBtn = document.querySelector('#analyzeRow .btn-primary');
+  if (analyzeBtn) analyzeBtn.textContent = t('btnAnalyze');
+  const resetBtn = document.querySelector('[onclick="resetAnalysis()"]');
+  if (resetBtn) resetBtn.textContent = t('btnReset');
+  const speakBtn = document.getElementById('speakBtn');
+  if (speakBtn) speakBtn.textContent = t('btnSpeak');
+  const saveGrindBtn = document.getElementById('saveGrindBtn');
+  if (saveGrindBtn) saveGrindBtn.textContent = t('btnSaveGrind');
+
+  // Result labels
+  const rows = document.querySelectorAll('.row-label');
+  const rowMap = {
+    [t('levelLbl', )]: 'levelLbl', // dynamic
+  };
+  // Timer
+  document.getElementById('startBtn').textContent = t('timerStart');
+  document.getElementById('stopBtn').textContent = t('timerStop');
+  document.querySelector('[onclick="resetTimer()"]').textContent = t('timerReset');
+
+  // Timer info rows
+  const timerRows = document.querySelectorAll('#timerSection .row-label');
+  if (timerRows[1]) timerRows[1].textContent = t('dosingLbl');
+  if (timerRows[2]) timerRows[2].textContent = t('waterLbl');
+
+  const timerVals = document.querySelectorAll('#timerSection .row-value');
+  if (timerVals[1]) timerVals[1].textContent = t('dosingVal');
+  if (timerVals[2]) timerVals[2].textContent = t('waterVal');
+
+  // Timer recommend text
+  const recommend = document.querySelector('.timer-hero [style*="green"]');
+  if (recommend) recommend.textContent = t('timerRecommend');
+
+  // Screen warn
+  const warnStrong = document.querySelector('.screen-warn-text strong');
+  const warnText = document.querySelector('.screen-warn-text');
+  if (warnStrong) warnStrong.textContent = t('screenWarn');
+  if (warnText) warnText.innerHTML = `<strong>${t('screenWarn')}</strong> ${t('screenWarnSub')}`;
+
+  // Alert banners
+  const warnTitle = document.querySelector('#alertWarn .alert-title');
+  const warnBody = document.querySelector('#alertWarn .alert-body');
+  if (warnTitle) warnTitle.textContent = t('warnTitle');
+  if (warnBody) warnBody.textContent = t('warnBody');
+
+  const dangerTitle = document.querySelector('#alertDanger .alert-title');
+  const dangerBody = document.querySelector('#alertDanger .alert-body');
+  if (dangerTitle) dangerTitle.textContent = t('dangerTitle');
+  if (dangerBody) dangerBody.textContent = t('dangerBody');
+
+  // Timeline
+  renderStages();
+
+  // Update banner
+  document.querySelector('#updateBanner span').textContent = t('updateNew');
+  document.querySelectorAll('.update-btn')[0].textContent = t('updateLater');
+  document.querySelectorAll('.update-btn')[1].textContent = t('updateNow');
+
+  // Install overlay
+  document.querySelector('.install-title').textContent = t('installTitle');
+  document.querySelector('.install-desc').textContent = t('installDesc');
+
+  // 기록 탭
+  const historyHdEl = document.getElementById('historyHd');
+  if (historyHdEl) historyHdEl.textContent = t('historyHd');
+  renderHistory();
+
+  // 기록 저장 모달
+  document.getElementById('saveModalTitle').textContent = t('saveTitle');
+  document.getElementById('memoInput').placeholder = t('saveMemo');
+  document.getElementById('saveCancelBtn').textContent = t('saveCancel');
+  document.getElementById('saveSaveBtn').textContent = t('saveSave');
+
+  // Timer UI refresh
+  updateTimerUI();
+}
+
 initTimer();
+applyLang();
 </script>
 </body>
 </html>
