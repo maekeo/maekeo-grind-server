@@ -8,7 +8,21 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+
 app = FastAPI()
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"422 검증 오류: {exc.errors()}")
+    body = await request.body()
+    print(f"요청 바디 첫 200자: {body[:200]}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "hint": "image 필드가 필요합니다"}
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,6 +42,8 @@ def root():
 @app.post("/analyze")
 def analyze(req: ImageRequest):
     try:
+        print(f"이미지 수신: {len(req.image)} chars")
+
         # 1. base64 → numpy 이미지 (메모리 최적화)
         img_bytes = base64.b64decode(req.image)
         np_arr = np.frombuffer(img_bytes, np.uint8)
