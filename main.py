@@ -3,6 +3,7 @@ import numpy as np
 import base64
 import math
 import gc
+import json
 from PIL import Image
 import io
 from fastapi import FastAPI, HTTPException, Request
@@ -99,23 +100,33 @@ def analyze(req: ImageRequest):
         del img
         gc.collect()
 
-        return {
-            "result": {
-                "levelKor": level_kor, "level": level, "percent": percent,
-                "particleSize": round(avg_um), "stdDev": round(std_um),
-                "uniformity": uniformity, "particleCount": len(sizes_um),
-                "finesCount": len(fines_um), "finesRatio": fines_ratio,
-                "histogram": histogram, "mokaFit": moka_fit,
-                "bestBrew": get_best_brew(avg_um), "advice": advice,
-                "calibrated": px_per_mm is not None, "method": method,
-                "isCoffee": True,
-            }
+        result_data = {
+            "levelKor": str(level_kor),
+            "level": str(level),
+            "percent": int(percent),
+            "particleSize": int(round(avg_um)),
+            "stdDev": int(round(std_um)),
+            "uniformity": int(uniformity),
+            "particleCount": int(len(sizes_um)),
+            "finesCount": int(len(fines_um)),
+            "finesRatio": int(fines_ratio),
+            "histogram": histogram,
+            "mokaFit": str(moka_fit),
+            "bestBrew": str(get_best_brew(avg_um)),
+            "advice": str(advice),
+            "calibrated": bool(px_per_mm is not None),
+            "method": str(method),
+            "isCoffee": True,
         }
+        print(f"분석 완료: {result_data['levelKor']} {result_data['particleSize']}μm")
+        return JSONResponse(content={"result": result_data})
 
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
         print(f"분석 오류: {e}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"분석 오류: {str(e)}")
     finally:
         gc.collect()
