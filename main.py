@@ -14,11 +14,6 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print(f"422 오류: {exc.errors()}")
-    return JSONResponse(status_code=422, content={"detail": str(exc.errors())})
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,6 +21,16 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    body = await request.body()
+    print(f"422 검증 오류: {exc.errors()}")
+    print(f"요청 바디 첫 100자: {body[:100]}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": str(exc.errors())}
+    )
 
 class ImageRequest(BaseModel):
     image: str
@@ -67,7 +72,11 @@ def analyze(req: ImageRequest):
         print(f"입자: {len(particles)}개, 미분: {len(fines)}개")
 
         if len(particles) < 3:
-            raise HTTPException(status_code=422, detail="입자를 충분히 감지하지 못했습니다. 흰 배경에 원두를 넓게 펼쳐 다시 촬영해주세요.")
+            print(f"입자 부족: {len(particles)}개")
+            return JSONResponse(content={
+                "error": "입자를 충분히 감지하지 못했습니다. 흰 배경에 원두를 넓게 펼쳐 다시 촬영해주세요.",
+                "particleCount": len(particles)
+            }, status_code=200)
 
         # 6. 크기 계산
         if px_per_mm:
@@ -93,7 +102,11 @@ def analyze(req: ImageRequest):
             print(f"필터 완화 후 입자: {len(sizes_um)}개")
 
         if not sizes_um:
-            raise HTTPException(status_code=422, detail="유효한 입자를 감지하지 못했습니다.")
+            print("유효 입자 없음")
+            return JSONResponse(content={
+                "error": "유효한 입자를 감지하지 못했습니다.",
+                "particleCount": 0
+            }, status_code=200)
 
         avg_um    = float(np.mean(sizes_um))
         std_um    = float(np.std(sizes_um))
