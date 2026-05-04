@@ -80,8 +80,17 @@ def analyze(req: ImageRequest):
             fines_um = [math.sqrt(a / ref_area) * 120 for a in fines]
             method = "estimated"
 
-        sizes_um = [s for s in sizes_um if 50 < s < 2000]
-        fines_um = [s for s in fines_um if 10 < s < 200]
+        sizes_um = [s for s in sizes_um if 20 < s < 3000]
+        fines_um = [s for s in fines_um if 5 < s < 300]
+
+        # 필터 후 비어있으면 원본 사용
+        if not sizes_um and particles:
+            if px_per_mm:
+                sizes_um = [math.sqrt(a) / px_per_mm * 1000 for a in particles]
+            else:
+                ref_area = np.median(particles)
+                sizes_um = [math.sqrt(a / ref_area) * 400 for a in particles]
+            print(f"필터 완화 후 입자: {len(sizes_um)}개")
 
         if not sizes_um:
             raise HTTPException(status_code=422, detail="유효한 입자를 감지하지 못했습니다.")
