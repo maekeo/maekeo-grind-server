@@ -92,8 +92,8 @@ def analyze(req: ImageRequest):
             fines_um = [math.sqrt(a) / px_per_mm_est * 1000 for a in fines]
             method = "estimated"
 
-        sizes_um = [s for s in sizes_um if 20 < s < 3000]
-        fines_um = [s for s in fines_um if 5 < s < 300]
+        sizes_um = [s for s in sizes_um if 30 < s < 3000]
+        fines_um = [s for s in fines_um if 5 < s < 200]
 
         # 필터 후 비어있으면 원본 사용
         if not sizes_um and particles:
@@ -187,35 +187,29 @@ def detect_particles(img):
     blur = cv2.GaussianBlur(gray, (3, 3), 0)
     del gray
 
-    # 고정 임계값 (배경이 밝고 원두가 어두운 경우에 최적)
-    _, binary_fixed = cv2.threshold(blur, 100, 255, cv2.THRESH_BINARY_INV)
-    # Otsu 이진화
-    _, binary_otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    # thresh=80 고정 (배경이 밝고 원두가 어두운 경우 최적)
+    _, binary = cv2.threshold(blur, 80, 255, cv2.THRESH_BINARY_INV)
     del blur
 
-    # 두 방식 모두 시도해서 더 많은 입자를 감지하는 쪽 선택
-    results = []
-    for binary in [binary_fixed, binary_otsu]:
-        kernel = np.ones((2, 2), np.uint8)
-        cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
-        contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        h, w = cleaned.shape
-        img_area = h * w
-        particles = []
-        fines = []
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area < img_area * 0.000002: continue
-            if area > img_area * 0.15: continue
-            if area < img_area * 0.0003:
-                fines.append(area)
-            else:
-                particles.append(area)
-        results.append((particles, fines, h, w))
+    kernel = np.ones((2, 2), np.uint8)
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+    del binary
 
-    # 입자가 더 많이 감지된 방식 선택
-    best = max(results, key=lambda x: len(x[0]))
-    particles, fines, h, w = best
+    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    h, w = cleaned.shape
+    del cleaned
+    img_area = h * w
+
+    particles, fines = [], []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < img_area * 0.000001: continue  # 노이즈 제거
+        if area > img_area * 0.01: continue       # 너무 큰 덩어리 제외
+        if area < img_area * 0.0001:
+            fines.append(area)
+        else:
+            particles.append(area)
+
     print(f"감지: 입자 {len(particles)}개, 미분 {len(fines)}개")
     return particles, fines, h, w
 
