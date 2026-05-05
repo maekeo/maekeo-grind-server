@@ -5,13 +5,12 @@ import math
 import gc
 from PIL import Image
 import io
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
-app = FastAPI()
+app = FastAPI(title="Maekerpot Grind Analyzer API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,65 +24,65 @@ app.add_middleware(
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": str(exc.errors())})
 
-class ImageRequest(BaseModel):
-    image: str
-
 @app.get("/")
 def root():
     return {"status": "MAEKEO LAB 분쇄도 분석 서버 가동 중"}
 
 @app.post("/analyze")
-def analyze(req: ImageRequest):
+async def analyze(file: UploadFile = File(...)):
     try:
-        print(f"이미지 수신: {len(req.image)} chars")
+        # 1. 파일 읽기 (바이너리 직접 수신 — base64 오버헤드 없음)
+        contents = await file.read()
+        print(f"이미지 수신: {len(contents)} bytes")
 
-        # 1. Decode & Resize
-        img_bytes = base64.b64decode(req.image)
-        pil_img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
-        del img_bytes
+        # 2. OpenCV 이미지 변환
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        del contents, nparr
 
+        if img is None:
+            return JSONResponse(content={"error": "이미지 디코딩 실패"}, status_code=400)
+
+        # 3. 리사이즈
         MAX = 1000
-        w, h = pil_img.size
-        if max(w, h) > MAX:
-            scale = MAX / max(w, h)
-            pil_img = pil_img.resize((int(w*scale), int(h*scale)), Image.LANCZOS)
-
-        img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-        del pil_img
         h, w = img.shape[:2]
+        if max(h, w) > MAX:
+            scale = MAX / max(h, w)
+            img = cv2.resize(img, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
+            h, w = img.shape[:2]
         print(f"이미지: {w}x{h}")
 
-        # 2. 동전 감지 → px/mm
+        # 4. 동전 감지 → px/mm
         px_per_mm = detect_coin(img, w, h)
         print(f"px/mm: {px_per_mm}")
 
-        # 3. ROI + CLAHE + Adaptive Thresholding + Watershed
+        # 5. ROI + CLAHE + Adaptive Thresholding + Watershed
         markers, roi, roi_y, roi_x = analyze_coffee_grounds(img)
 
-        # 4. 입자 면적 측정
+        # 6. 입자 면적 측정
         roi_h, roi_w = roi.shape[:2]
         roi_area = roi_h * roi_w
-        particles, fines, contour_list = extract_particles(markers, roi_area)
+        particles, fines = extract_particles(markers, roi_area)
         print(f"감지: 입자 {len(particles)}개, 미분 {len(fines)}개")
 
-        # 5. Overlay 이미지 생성
-        overlay_b64 = make_overlay(img, markers, roi, roi_y, roi_x, w, h)
+        # 7. 오버레이 이미지 생성
+        overlay_b64 = make_overlay(img, markers, roi, roi_y, roi_x)
         del markers, roi
         gc.collect()
 
         if len(particles) < 1:
             return JSONResponse(content={
-                "error": "입자를 감지하지 못했습니다. 흰 종이 위에 원두를 넓게 펼쳐 다시 촬영해주세요.",
-                "particleCount": 0
+                "status": "error",
+                "message": "입자를 감지하지 못했습니다. 흰 종이 위에 원두를 넓게 펼쳐 다시 촬영해주세요."
             })
 
-        # 6. 크기 계산
+        # 8. 크기 계산
         sizes_um, fines_um, method = calc_sizes(particles, fines, px_per_mm)
 
         if not sizes_um:
             return JSONResponse(content={
-                "error": "유효한 입자 크기를 계산하지 못했습니다. 다시 촬영해주세요.",
-                "particleCount": len(particles)
+                "status": "error",
+                "message": "유효한 입자 크기를 계산하지 못했습니다. 다시 촬영해주세요."
             })
 
         avg_um      = float(np.mean(sizes_um))
@@ -93,52 +92,52 @@ def analyze(req: ImageRequest):
         uniformity  = max(0, min(100, round(100 - cv_val)))
         total       = len(sizes_um) + len(fines_um)
         fines_ratio = round(len(fines_um) / total * 100) if total > 0 else 0
-
-        # 히스토그램 (구간별 %)
-        histogram = build_histogram(sizes_um)
-
+        histogram   = build_histogram(sizes_um)
         level_kor, level, percent = classify_grind(avg_um)
-        moka_fit  = classify_moka_fit(avg_um)
-        advice    = generate_advice(avg_um, moka_fit, std_um, fines_ratio)
+        moka_fit    = classify_moka_fit(avg_um)
+        advice      = generate_advice(avg_um, moka_fit, std_um, fines_ratio)
 
         print(f"완료: {level_kor} {round(avg_um)}μm ({len(sizes_um)}개)")
 
-        return JSONResponse(content={"result": {
-            # 기본 분류
-            "levelKor":      level_kor,
-            "level":         level,
-            "percent":       int(percent),
-            "mokaFit":       moka_fit,
-            "bestBrew":      get_best_brew(avg_um),
-            "advice":        advice,
+        return JSONResponse(content={
+            "status": "success",
+            "data": {
+                "summary": {
+                    "average_micron":    int(round(avg_um)),
+                    "median_micron":     int(round(median_um)),
+                    "std_dev":           int(round(std_um)),
+                    "fines_percentage":  int(fines_ratio),
+                    "uniformity_score":  int(uniformity),
+                    "particle_count":    int(len(sizes_um)),
+                    "fines_count":       int(len(fines_um)),
+                },
+                "classification": {
+                    "levelKor":  level_kor,
+                    "level":     level,
+                    "percent":   int(percent),
+                    "mokaFit":   moka_fit,
+                    "bestBrew":  get_best_brew(avg_um),
+                    "advice":    advice,
+                },
+                "distribution_chart": histogram,
+                "visual_result": {
+                    "overlay_image_b64": overlay_b64,
+                },
+                "meta": {
+                    "calibrated": px_per_mm is not None,
+                    "method":     method,
+                    "isCoffee":   True,
+                }
+            }
+        })
 
-            # 측정값 (summary)
-            "particleSize":  int(round(avg_um)),      # average_micron (D50)
-            "medianSize":    int(round(median_um)),
-            "stdDev":        int(round(std_um)),
-            "uniformity":    int(uniformity),          # uniformity_score
-            "particleCount": int(len(sizes_um)),
-            "finesCount":    int(len(fines_um)),
-            "finesRatio":    int(fines_ratio),         # fines_percentage
-
-            # 분포 히스토그램 (구간별 %)
-            "histogram":     histogram,
-
-            # 분석 오버레이 이미지 (base64)
-            "overlayImage":  overlay_b64,
-
-            # 메타
-            "calibrated":    px_per_mm is not None,
-            "method":        method,
-            "isCoffee":      True,
-        }})
-
-    except HTTPException:
-        raise
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"분석 오류: {str(e)}")
+        return JSONResponse(
+            content={"status": "error", "message": f"분석 오류: {str(e)}"},
+            status_code=500
+        )
     finally:
         gc.collect()
 
@@ -160,18 +159,15 @@ def detect_coin(img, w, h):
     print(f"동전: 지름={diameter_px}px 비율={ratio:.2f}")
     if not (0.08 <= ratio <= 0.45):
         return None
-    return diameter_px / 24.0
+    return diameter_px / 24.0  # 100원 기준 24mm
 
 
 def analyze_coffee_grounds(img):
     h, w = img.shape[:2]
-
-    # ROI: 중앙 50%
     roi_y, roi_x = int(h*0.25), int(w*0.25)
     roi = img[roi_y:int(h*0.75), roi_x:int(w*0.75)].copy()
     print(f"ROI: {roi.shape[1]}x{roi.shape[0]}")
 
-    # CLAHE
     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     clahe_img = clahe.apply(gray)
@@ -179,7 +175,6 @@ def analyze_coffee_grounds(img):
     blurred = cv2.GaussianBlur(clahe_img, (5, 5), 0)
     del clahe_img
 
-    # Adaptive Thresholding
     thresh = cv2.adaptiveThreshold(
         blurred, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -188,12 +183,10 @@ def analyze_coffee_grounds(img):
     )
     del blurred
 
-    # Morphology
     kernel = np.ones((3, 3), np.uint8)
     opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
     del thresh
 
-    # Watershed
     sure_bg = cv2.dilate(opening, kernel, iterations=3)
     dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
     del opening
@@ -213,66 +206,45 @@ def analyze_coffee_grounds(img):
 
 
 def extract_particles(markers, roi_area):
-    particles, fines, contour_list = [], [], []
-    for label in np.unique(markers):
-        if label <= 1:
-            continue
-        mask = (markers == label).astype(np.uint8)
-        area = float(np.sum(mask))
-        if area < roi_area * 0.000001: continue
-        if area > roi_area * 0.05:     continue
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if contours:
-            contour_list.append((contours[0], label))
-        if area < roi_area * 0.00008:
-            fines.append(area)
-        else:
-            particles.append(area)
-    return particles, fines, contour_list
-
-
-def make_overlay(img, markers, roi, roi_y, roi_x, w, h):
-    """분석 결과 오버레이 이미지 생성 — 입자 테두리 + ROI 박스"""
-    overlay = img.copy()
-    roi_h, roi_w = roi.shape[:2]
-
-    # ROI 영역 표시 (흰색 반투명)
-    overlay_roi = overlay[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
-    roi_area = roi_h * roi_w
-
-    # 각 입자 컨투어 그리기
+    particles, fines = [], []
     for label in np.unique(markers):
         if label <= 1:
             continue
         area = float(np.sum(markers == label))
         if area < roi_area * 0.000001: continue
         if area > roi_area * 0.05:     continue
+        if area < roi_area * 0.00008:
+            fines.append(area)
+        else:
+            particles.append(area)
+    return particles, fines
 
+
+def make_overlay(img, markers, roi, roi_y, roi_x):
+    overlay = img.copy()
+    roi_h, roi_w = roi.shape[:2]
+    overlay_roi = overlay[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
+    roi_area = roi_h * roi_w
+
+    for label in np.unique(markers):
+        if label <= 1: continue
+        area = float(np.sum(markers == label))
+        if area < roi_area * 0.000001: continue
+        if area > roi_area * 0.05:     continue
         mask = np.uint8(markers == label)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            continue
-
-        # 미분: 주황, 일반: 초록
-        if area < roi_area * 0.00008:
-            color = (0, 140, 255)   # 주황 (BGR)
-        else:
-            color = (0, 220, 80)    # 초록 (BGR)
-
+        if not contours: continue
+        color = (0, 140, 255) if area < roi_area * 0.00008 else (0, 220, 80)
         cv2.drawContours(overlay_roi, contours, -1, color, 1)
 
-    # ROI 경계선
     cv2.rectangle(overlay,
         (roi_x, roi_y),
         (roi_x + roi_w, roi_y + roi_h),
-        (255, 255, 0), 2)  # 노란색
+        (255, 255, 0), 2)
 
-    # 리사이즈 (전송 크기 절약 400px)
     ratio = 400 / max(overlay.shape[:2])
     small = cv2.resize(overlay, (int(overlay.shape[1]*ratio), int(overlay.shape[0]*ratio)))
     del overlay
-
-    # base64 인코딩
     _, buf = cv2.imencode('.jpg', small, [cv2.IMWRITE_JPEG_QUALITY, 70])
     del small
     return base64.b64encode(buf).decode('utf-8')
@@ -301,7 +273,6 @@ def calc_sizes(particles, fines, px_per_mm):
 
 
 def build_histogram(sizes_um):
-    """구간별 % 분포 히스토그램"""
     bins   = [0, 100, 200, 300, 400, 500, 600, 99999]
     labels = ["<100", "100-200", "200-300", "300-400", "400-500", "500-600", "600+"]
     counts = [0] * 7
@@ -311,11 +282,7 @@ def build_histogram(sizes_um):
             if bins[i] <= s < bins[i+1]:
                 counts[i] += 1; break
     values = [round(c/total*100, 1) if total > 0 else 0 for c in counts]
-    return {
-        "labels": labels,
-        "values": values,
-        "counts": counts,
-    }
+    return {"labels": labels, "values": values, "counts": counts}
 
 
 def classify_grind(avg_um):
