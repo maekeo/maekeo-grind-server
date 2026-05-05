@@ -49,7 +49,7 @@ def analyze(req: ImageRequest):
         pil_img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
 
         # 2. 600px로 리사이즈 (메모리 절약)
-        MAX = 600
+        MAX = 800
         w, h = pil_img.size
         if max(w, h) > MAX:
             scale = MAX / max(w, h)
@@ -68,7 +68,7 @@ def analyze(req: ImageRequest):
         print(f"동전 감지: {px_per_mm}")
 
         # 5. 입자 분석
-        particles, fines = detect_particles(img)
+        particles, fines, h, w = detect_particles(img)
         print(f"입자: {len(particles)}개, 미분: {len(fines)}개")
 
         if len(particles) < 1:
@@ -187,39 +187,37 @@ def detect_particles(img):
     blur = cv2.GaussianBlur(gray, (3, 3), 0)
     del gray
 
+    # 고정 임계값 (배경이 밝고 원두가 어두운 경우에 최적)
+    _, binary_fixed = cv2.threshold(blur, 100, 255, cv2.THRESH_BINARY_INV)
     # Otsu 이진화
-    _, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    _, binary_otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     del blur
 
-    # 최소한의 노이즈 제거만
-    kernel = np.ones((2, 2), np.uint8)
-    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
-    del binary
+    # 두 방식 모두 시도해서 더 많은 입자를 감지하는 쪽 선택
+    results = []
+    for binary in [binary_fixed, binary_otsu]:
+        kernel = np.ones((2, 2), np.uint8)
+        cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+        contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        h, w = cleaned.shape
+        img_area = h * w
+        particles = []
+        fines = []
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < img_area * 0.000002: continue
+            if area > img_area * 0.15: continue
+            if area < img_area * 0.0003:
+                fines.append(area)
+            else:
+                particles.append(area)
+        results.append((particles, fines, h, w))
 
-    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    h, w = cleaned.shape
-    del cleaned
-
-    img_area = h * w
-    particles, fines = [], []
-
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        # 최소 노이즈 기준만 적용 (이미지 면적의 0.0002%)
-        if area < img_area * 0.000002:
-            continue
-        # 이미지의 15% 이상은 배경으로 제외
-        if area > img_area * 0.15:
-            continue
-        # 미분: 0.0002% ~ 0.03%
-        if area < img_area * 0.0003:
-            fines.append(area)
-        # 일반 입자: 0.03% ~ 15%
-        else:
-            particles.append(area)
-
-    print(f"원본 감지: 입자 {len(particles)}개, 미분 {len(fines)}개")
-    return particles, fines
+    # 입자가 더 많이 감지된 방식 선택
+    best = max(results, key=lambda x: len(x[0]))
+    particles, fines, h, w = best
+    print(f"감지: 입자 {len(particles)}개, 미분 {len(fines)}개")
+    return particles, fines, h, w
 
 
 def build_histogram(sizes_um):
