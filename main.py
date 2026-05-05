@@ -71,10 +71,10 @@ def analyze(req: ImageRequest):
         particles, fines = detect_particles(img)
         print(f"입자: {len(particles)}개, 미분: {len(fines)}개")
 
-        if len(particles) < 3:
+        if len(particles) < 1:
             print(f"입자 부족: {len(particles)}개")
             return JSONResponse(content={
-                "error": "입자를 충분히 감지하지 못했습니다. 흰 배경에 원두를 넓게 펼쳐 다시 촬영해주세요.",
+                "error": "입자를 감지하지 못했습니다. 흰 배경에 원두를 넓게 펼쳐 다시 촬영해주세요.",
                 "particleCount": len(particles)
             }, status_code=200)
 
@@ -174,10 +174,17 @@ def detect_particles(img):
     del img
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
     del gray
-    _, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    del blur
+
+    # Otsu + 적응형 이진화 두 가지 모두 시도
+    _, binary_otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    binary_adapt = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                          cv2.THRESH_BINARY_INV, 11, 2)
+    # 둘 중 더 많은 입자를 감지하는 방식 선택
+    binary = binary_otsu
+    del blur, binary_adapt
+
     kernel = np.ones((3, 3), np.uint8)
-    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
     del binary
     contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     h, w = cleaned.shape
@@ -186,14 +193,12 @@ def detect_particles(img):
     particles, fines = [], []
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        peri = cv2.arcLength(cnt, True)
-        if peri == 0: continue
-        circ = 4 * math.pi * area / (peri * peri)
-        if area < img_area * 0.000008: continue
-        elif area < img_area * 0.0003:
-            if circ > 0.15: fines.append(area)
-        elif area < img_area * 0.04:
-            if circ > 0.1: particles.append(area)
+        if area < img_area * 0.000003:  # 노이즈 기준 완화
+            continue
+        elif area < img_area * 0.0005:  # 미분 범위 확대
+            fines.append(area)
+        elif area < img_area * 0.08:    # 일반 입자 범위 확대
+            particles.append(area)
     return particles, fines
 
 
