@@ -84,9 +84,12 @@ def analyze(req: ImageRequest):
             fines_um = [math.sqrt(a) / px_per_mm * 1000 for a in fines]
             method = "coin_calibrated"
         else:
-            ref_area = np.median(particles)
-            sizes_um = [math.sqrt(a / ref_area) * 400 for a in particles]
-            fines_um = [math.sqrt(a / ref_area) * 120 for a in fines]
+            # 추정: 이미지 크기 기반 상대 크기 계산
+            # 600px 이미지에서 중간 분쇄도(400μm) 입자는 약 10~15px 지름
+            img_scale = max(h, w) / 600.0
+            px_per_mm_est = 25.0 / img_scale  # 경험적 기준값
+            sizes_um = [math.sqrt(a) / px_per_mm_est * 1000 for a in particles]
+            fines_um = [math.sqrt(a) / px_per_mm_est * 1000 for a in fines]
             method = "estimated"
 
         sizes_um = [s for s in sizes_um if 20 < s < 3000]
@@ -160,12 +163,21 @@ def detect_coin(img):
     h, w = blur.shape
     circles = cv2.HoughCircles(blur, cv2.HOUGH_GRADIENT, dp=1,
         minDist=w//4, param1=50, param2=30,
-        minRadius=int(w*0.05), maxRadius=int(w*0.25))
+        minRadius=int(w*0.05), maxRadius=int(w*0.22))
     del gray, blur
     if circles is not None:
         circles = np.round(circles[0]).astype("int")
         largest = max(circles, key=lambda c: c[2])
-        return (largest[2] * 2) / 25.0
+        radius = largest[2]
+        diameter_px = radius * 2
+        ratio = diameter_px / w
+        print(f"동전 비율: {ratio:.2f} (지름 {diameter_px}px / 이미지 {w}px)")
+        # 동전이 이미지 너비의 10~40% 범위일 때만 유효
+        if 0.10 <= ratio <= 0.40:
+            return diameter_px / 24.0  # 100원 기준 24mm
+        else:
+            print(f"동전 비율 이상({ratio:.2f}) → 추정 방식 사용")
+            return None
     return None
 
 
