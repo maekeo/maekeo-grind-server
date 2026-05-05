@@ -184,33 +184,41 @@ def detect_coin(img):
 def detect_particles(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     del img
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    blur = cv2.GaussianBlur(gray, (3, 3), 0)
     del gray
 
-    # Otsu + 적응형 이진화 두 가지 모두 시도
-    _, binary_otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    binary_adapt = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                          cv2.THRESH_BINARY_INV, 11, 2)
-    # 둘 중 더 많은 입자를 감지하는 방식 선택
-    binary = binary_otsu
-    del blur, binary_adapt
+    # Otsu 이진화
+    _, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    del blur
 
-    kernel = np.ones((3, 3), np.uint8)
+    # 최소한의 노이즈 제거만
+    kernel = np.ones((2, 2), np.uint8)
     cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
     del binary
+
     contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     h, w = cleaned.shape
     del cleaned
+
     img_area = h * w
     particles, fines = [], []
+
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < img_area * 0.000003:  # 노이즈 기준 완화
+        # 최소 노이즈 기준만 적용 (이미지 면적의 0.0002%)
+        if area < img_area * 0.000002:
             continue
-        elif area < img_area * 0.0005:  # 미분 범위 확대
+        # 이미지의 15% 이상은 배경으로 제외
+        if area > img_area * 0.15:
+            continue
+        # 미분: 0.0002% ~ 0.03%
+        if area < img_area * 0.0003:
             fines.append(area)
-        elif area < img_area * 0.08:    # 일반 입자 범위 확대
+        # 일반 입자: 0.03% ~ 15%
+        else:
             particles.append(area)
+
+    print(f"원본 감지: 입자 {len(particles)}개, 미분 {len(fines)}개")
     return particles, fines
 
 
