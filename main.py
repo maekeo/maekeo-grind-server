@@ -187,8 +187,14 @@ def detect_particles(img):
     blur = cv2.GaussianBlur(gray, (3, 3), 0)
     del gray
 
-    # thresh=80 고정 (배경이 밝고 원두가 어두운 경우 최적)
-    _, binary = cv2.threshold(blur, 80, 255, cv2.THRESH_BINARY_INV)
+    # 배경 밝기 기반 동적 임계값
+    # 중앙값의 80% 미만인 픽셀을 입자로 판단
+    median_bright = float(np.median(blur))
+    thresh_val = int(median_bright * 0.80)
+    thresh_val = max(40, min(thresh_val, 200))  # 40~200 범위로 제한
+    print(f"동적 임계값: {thresh_val} (중앙밝기 {median_bright:.0f})")
+
+    _, binary = cv2.threshold(blur, thresh_val, 255, cv2.THRESH_BINARY_INV)
     del blur
 
     kernel = np.ones((2, 2), np.uint8)
@@ -203,9 +209,9 @@ def detect_particles(img):
     particles, fines = [], []
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < img_area * 0.000001: continue  # 노이즈 제거
-        if area > img_area * 0.01: continue       # 너무 큰 덩어리 제외
-        if area < img_area * 0.0001:
+        if area < img_area * 0.000001: continue
+        if area > img_area * 0.008: continue
+        if area < img_area * 0.00005:
             fines.append(area)
         else:
             particles.append(area)
